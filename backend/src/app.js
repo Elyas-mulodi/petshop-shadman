@@ -41,7 +41,7 @@ app.get("/api/health", (req, res) => {
 // ---------- Routes ----------
 app.use("/api/auth", authRoutes);
 
-// ---------- Error Handlers (باید آخر از همه باشن) ----------
+// ---------- Error Handlers  ----------
 app.use(notFound);
 app.use(errorHandler);
 

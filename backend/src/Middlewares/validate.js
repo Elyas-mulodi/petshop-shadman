@@ -1,11 +1,25 @@
-const validate = (schema) => (req, res, next) => {
-  const result = schema.safeParse(req.body);
+
+const validate = (schema, source = "body") => (req, res, next) => {
+  const result = schema.safeParse(req[source]);
+
   if (!result.success) {
-    const message = result.error.errors.map((e) => e.message).join(", ");
-    res.status(400);
-    return next(new Error(message));
+    const errors = {};
+
+    result.error.errors.forEach((err) => {
+      const field = err.path.join(".") || "general";
+      if (!errors[field]) {
+        errors[field] = err.message;
+      }
+    });
+
+    return res.status(422).json({
+      success: false,
+      message: "اطلاعات ارسالی معتبر نیست",
+      errors,
+    });
   }
-  req.body = result.data;
+
+  req[source] = result.data;
   next();
 };
 

@@ -1,32 +1,49 @@
 import { z } from "zod";
 
 const phoneRegex = /^09\d{9}$/;
+const digitsOnlyRegex = /^\d+$/;
+
+const phoneField = z
+  .string({ required_error: "شماره موبایل الزامی است" })
+  .trim()
+  .regex(phoneRegex, "شماره موبایل باید ۱۱ رقمی و با فرمت 09xxxxxxxxx باشد");
+
+const passwordField = z
+  .string({ required_error: "رمز عبور الزامی است" })
+  .min(6, "رمز عبور باید حداقل ۶ کاراکتر باشد")
+  .max(50, "رمز عبور خیلی طولانی است");
+
+const otpField = z
+  .string({ required_error: "کد تایید الزامی است" })
+  .trim()
+  .length(4, "کد تایید باید ۴ رقمی باشد")
+  .regex(digitsOnlyRegex, "کد تایید باید فقط شامل عدد باشد");
 
 export const sendOtpSchema = z.object({
-  phone: z.string().regex(phoneRegex, "فرمت شماره موبایل معتبر نیست"),
+  phone: phoneField,
 });
 
 export const verifyOtpSchema = z.object({
-  phone: z.string().regex(phoneRegex, "فرمت شماره موبایل معتبر نیست"),
-  otp: z.string().length(4, "کد تایید باید ۴ رقمی باشد"),
+  phone: phoneField,
+  otp: otpField,
 });
 
 export const setPasswordSchema = z.object({
-  registrationToken: z.string().min(1, "توکن ثبت‌نام الزامی است"),
-  password: z.string().min(6, "رمز عبور باید حداقل ۶ کاراکتر باشد"),
+  registrationToken: z.string({ required_error: "توکن ثبت‌نام الزامی است" }).min(10, "توکن نامعتبر است"),
+  password: passwordField,
 });
 
 export const loginSchema = z.object({
-  phone: z.string().regex(phoneRegex, "فرمت شماره موبایل معتبر نیست"),
-  password: z.string().min(1, "رمز عبور الزامی است"),
+  phone: phoneField,
+  password: z.string({ required_error: "رمز عبور الزامی است" }).min(1, "رمز عبور الزامی است"),
 });
 
 export const resetPasswordSchema = z.object({
-  resetToken: z.string().min(1, "توکن بازیابی الزامی است"),
-  password: z.string().min(6, "رمز عبور باید حداقل ۶ کاراکتر باشد"),
+  resetToken: z.string({ required_error: "توکن بازیابی الزامی است" }).min(10, "توکن نامعتبر است"),
+  password: passwordField,
 });
 
 export const createAdminSchema = z.object({
-  phone: z.string().regex(phoneRegex, "فرمت شماره موبایل معتبر نیست"),
-  password: z.string().min(6, "رمز عبور باید حداقل ۶ کاراکتر باشد"),
+  phone: phoneField,
+  password: passwordField,
 });
