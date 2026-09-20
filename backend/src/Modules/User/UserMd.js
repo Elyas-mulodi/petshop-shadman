@@ -30,6 +30,10 @@ const userSchema = new mongoose.Schema(
       type: Date,
       select: false,
     },
+    pendingLoyaltyDiscount: {
+      percent: { type: Number, default: 0 },
+      expiresAt: { type: Date, default: null },
+    },
   },
   { timestamps: true }
 );

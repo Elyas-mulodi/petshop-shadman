@@ -1,0 +1,91 @@
+import asyncHandler from "express-async-handler";
+import Coupon from "./CouponMd.js";
+
+// ---------- ساخت کد تخفیف (ادمین) ----------
+export const createCoupon = asyncHandler(async (req, res) => {
+  const existing = await Coupon.findOne({ code: req.body.code.toUpperCase() });
+
+  if (existing) {
+    res.status(409);
+    throw new Error("این کد تخفیف قبلاً ساخته شده است");
+  }
+
+  const coupon = await Coupon.create(req.body);
+
+  res.status(201).json({ success: true, data: coupon });
+});
+
+// ---------- لیست همه کدها (ادمین) ----------
+export const getAllCoupons = asyncHandler(async (req, res) => {
+  const coupons = await Coupon.find().sort({ createdAt: -1 });
+  res.status(200).json({ success: true, data: coupons });
+});
+
+// ---------- ویرایش کد تخفیف (ادمین) ----------
+export const updateCoupon = asyncHandler(async (req, res) => {
+  const coupon = await Coupon.findById(req.params.id);
+
+  if (!coupon) {
+    res.status(404);
+    throw new Error("کد تخفیف یافت نشد");
+  }
+
+  Object.assign(coupon, req.body);
+  await coupon.save();
+
+  res.status(200).json({ success: true, data: coupon });
+});
+
+// ---------- حذف کد تخفیف (ادمین) ----------
+export const deleteCoupon = asyncHandler(async (req, res) => {
+  const coupon = await Coupon.findById(req.params.id);
+
+  if (!coupon) {
+    res.status(404);
+    throw new Error("کد تخفیف یافت نشد");
+  }
+
+  await coupon.deleteOne();
+  res.status(200).json({ success: true, message: "کد تخفیف حذف شد" });
+});
+
+// ---------- بررسی اعتبار و محاسبه تخفیف کد (کاربر، هنگام پرداخت) ----------
+// نکته: این تابع فقط اعتبارسنجی و محاسبه می‌کنه، ثبت استفاده (usedBy) موقع نهایی شدن سفارش انجام میشه
+export const applyCoupon = asyncHandler(async (req, res) => {
+  const { code } = req.body;
+  const { cartTotal } = req.body;
+
+  const coupon = await Coupon.findOne({ code: code.toUpperCase(), isActive: true });
+
+  if (!coupon) {
+    res.status(404);
+    throw new Error("کد تخفیف نامعتبر است");
+  }
+
+  if (coupon.expiresAt && coupon.expiresAt < new Date()) {
+    res.status(400);
+    throw new Error("این کد تخفیف منقضی شده است");
+  }
+
+  if (coupon.usedBy.some((id) => String(id) === String(req.user._id))) {
+    res.status(400);
+    throw new Error("شما قبلاً از این کد تخفیف استفاده کرده‌اید");
+  }
+
+  if (cartTotal < coupon.minCartAmount) {
+    res.status(400);
+    throw new Error(`حداقل مبلغ سبد برای این کد ${coupon.minCartAmount.toLocaleString()} تومان است`);
+  }
+
+  const discountAmount = coupon.calculateDiscount(cartTotal);
+
+  res.status(200).json({
+    success: true,
+    data: { code: coupon.code, discountAmount, couponId: coupon._id },
+  });
+});
+
+// ---------- تابع کمکی داخلی (نه route) — موقع ثبت نهایی سفارش توسط ماژول Order فراخوانی میشه ----------
+export const markCouponAsUsed = async (couponId, userId) => {
+  await Coupon.findByIdAndUpdate(couponId, { $addToSet: { usedBy: userId } });
+};

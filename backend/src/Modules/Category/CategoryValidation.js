@@ -13,7 +13,7 @@ const parentField = z
   .regex(objectIdRegex, "شناسه دسته‌بندی والد معتبر نیست")
   .optional()
   .nullable()
-  .or(z.literal(""));
+  .or(z.literal("")); 
 
 const isActiveField = z.enum(["true", "false"], {
   errorMap: () => ({ message: "مقدار isActive باید true یا false باشد" }),
