@@ -89,3 +89,19 @@ export const applyCoupon = asyncHandler(async (req, res) => {
 export const markCouponAsUsed = async (couponId, userId) => {
   await Coupon.findByIdAndUpdate(couponId, { $addToSet: { usedBy: userId } });
 };
+
+// ---------- تابع مشترک اعتبارسنجی کد تخفیف (برای استفاده در route و OrderCn) ----------
+export const validateCouponForUser = async (code, userId, cartTotal) => {
+  const coupon = await Coupon.findOne({ code: code.toUpperCase(), isActive: true });
+
+  if (!coupon) return { valid: false, message: "کد تخفیف نامعتبر است" };
+  if (coupon.expiresAt && coupon.expiresAt < new Date())
+    return { valid: false, message: "این کد تخفیف منقضی شده است" };
+  if (coupon.usedBy.some((id) => String(id) === String(userId)))
+    return { valid: false, message: "شما قبلاً از این کد تخفیف استفاده کرده‌اید" };
+  if (cartTotal < coupon.minCartAmount)
+    return { valid: false, message: `حداقل مبلغ سبد برای این کد ${coupon.minCartAmount.toLocaleString()} تومان است` };
+
+  const discountAmount = coupon.calculateDiscount(cartTotal);
+  return { valid: true, discountAmount, coupon };
+};
