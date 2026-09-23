@@ -11,7 +11,20 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      select: false, 
+      select: false,
+    },
+    name: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: null,
+      sparse: true,
+      unique: true,
     },
     role: {
       type: String,
@@ -35,7 +48,7 @@ const userSchema = new mongoose.Schema(
       expiresAt: { type: Date, default: null },
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 userSchema.pre("save", async function (next) {

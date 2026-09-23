@@ -16,6 +16,8 @@ import couponRoutes from "./Modules/Coupon/Coupon.js";
 import loyaltyTierRoutes from "./Modules/LoyaltyTier/LoyaltyTier.js";
 import cartRoutes from "./Modules/Cart/Cart.js";
 import orderRoutes from "./Modules/Order/Order.js";
+import userRoutes from "./Modules/User/User.js";
+
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -65,6 +67,7 @@ app.use("/api/coupons", couponRoutes);
 app.use("/api/loyalty-tiers", loyaltyTierRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/users", userRoutes);
 
 // ---------- Error Handlers (باید آخر از همه باشن) ----------
 app.use(notFound);
