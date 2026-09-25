@@ -12,13 +12,13 @@ import {
   removeProductImage,
   deleteProduct,
 } from "./ProductCn.js";
-import { createProductSchema, updateProductSchema } from "./ProductValidation.js";
+import { createProductSchema, getProductsQuerySchema, updateProductSchema } from "./ProductValidation.js";
 
 const router = express.Router();
 const upload = createUploader("products");
 
 // ---------- عمومی ----------
-router.get("/", getProducts);
+router.get("/", validate(getProductsQuerySchema, "query"), getProducts);
 router.get("/new", getNewProducts);
 router.get("/discounted", getDiscountedProducts);
 router.get("/:slug", getProductBySlug);

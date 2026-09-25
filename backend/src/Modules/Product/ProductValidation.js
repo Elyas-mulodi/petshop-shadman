@@ -56,4 +56,17 @@ export const createProductSchema = z.object({
   isActive: z.enum(["true", "false"]).optional(),
 });
 
+export const getProductsQuerySchema = z.object({
+  category: z.string().regex(objectIdRegex, "شناسه دسته‌بندی معتبر نیست").optional(),
+  brand: z.string().regex(objectIdRegex, "شناسه برند معتبر نیست").optional(),
+  search: z.string().optional(),
+  minPrice: z.string().regex(/^\d+$/, "حداقل قیمت باید عدد باشد").optional(),
+  maxPrice: z.string().regex(/^\d+$/, "حداکثر قیمت باید عدد باشد").optional(),
+  inStock: z.enum(["true", "false"]).optional(),
+  attrs: z.string().optional(), // رشته JSON مثل [{"name":"وزن","value":"3 کیلوگرم"}]
+  sort: z.enum(["newest", "priceAsc", "priceDesc"]).optional(),
+  page: z.string().regex(/^\d+$/).optional(),
+  limit: z.string().regex(/^\d+$/).optional(),
+});
+
 export const updateProductSchema = createProductSchema.partial();

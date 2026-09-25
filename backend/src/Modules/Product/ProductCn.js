@@ -36,12 +36,57 @@ export const createProduct = asyncHandler(async (req, res) => {
 
 // ---------- لیست محصولات با فیلتر/صفحه‌بندی (عمومی) ----------
 export const getProducts = asyncHandler(async (req, res) => {
-  const { category, brand, page = 1, limit = 12, search, sort } = req.query;
+  const {
+    category,
+    brand,
+    page = 1,
+    limit = 12,
+    search,
+    sort,
+    minPrice,
+    maxPrice,
+    inStock,
+    attrs,
+  } = req.query;
 
   const filter = { isActive: true };
   if (category) filter.categories = category;
   if (brand) filter.brand = brand;
   if (search) filter.name = { $regex: search, $options: "i" };
+
+  // ---------- ساخت شرط روی حداقل یک واریانت (قیمت، موجودی، ویژگی‌ها) ----------
+  const variantElemMatch = {};
+
+  if (minPrice || maxPrice) {
+    variantElemMatch.price = {};
+    if (minPrice) variantElemMatch.price.$gte = Number(minPrice);
+    if (maxPrice) variantElemMatch.price.$lte = Number(maxPrice);
+  }
+
+  if (inStock === "true") {
+    variantElemMatch.stock = { $gt: 0 };
+  }
+
+  if (attrs) {
+    let parsedAttrs = [];
+    try {
+      parsedAttrs = JSON.parse(attrs);
+    } catch {
+      res.status(400);
+      throw new Error("فرمت فیلتر ویژگی‌ها (attrs) معتبر نیست");
+    }
+
+    if (Array.isArray(parsedAttrs) && parsedAttrs.length > 0) {
+      // هر واریانتی که هم‌زمان همه‌ی ویژگی‌های درخواستی رو داشته باشه (مثلا هم وزن=3کیلو هم طعم=مرغ)
+      variantElemMatch.attributes = {
+        $all: parsedAttrs.map((a) => ({ $elemMatch: { name: a.name, value: a.value } })),
+      };
+    }
+  }
+
+  if (Object.keys(variantElemMatch).length > 0) {
+    filter.variants = { $elemMatch: variantElemMatch };
+  }
 
   const sortOptions = {
     newest: { createdAt: -1 },
