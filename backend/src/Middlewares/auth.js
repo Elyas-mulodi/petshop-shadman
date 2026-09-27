@@ -24,6 +24,11 @@ export const protect = asyncHandler(async (req, res, next) => {
       throw new Error("کاربر یافت نشد");
     }
 
+    if (req.user.isBlocked) {
+      res.status(403);
+      throw new Error("حساب کاربری شما مسدود شده است");
+    }
+
     next();
   } catch (error) {
     res.status(401);
@@ -31,13 +36,15 @@ export const protect = asyncHandler(async (req, res, next) => {
   }
 });
 
-export const authorize = (...roles) => (req, res, next) => {
-  if (!roles.includes(req.user.role)) {
-    res.status(403);
-    throw new Error("شما اجازه دسترسی به این بخش را ندارید");
-  }
-  next();
-};
+export const authorize =
+  (...roles) =>
+  (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      res.status(403);
+      throw new Error("شما اجازه دسترسی به این بخش را ندارید");
+    }
+    next();
+  };
 
 export const verifyAdminSecret = (req, res, next) => {
   const secret = req.headers["x-admin-secret"];

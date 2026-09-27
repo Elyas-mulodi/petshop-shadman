@@ -8,6 +8,12 @@ import { grantLoyaltyDiscount } from "../../Utils/loyaltyHelper.js";
 import { requestPayment, verifyPayment } from "../../Utils/zarinpal.js";
 import generateOrderNumber from "../../Utils/generateOrderNumber.js";
 import Order from "./OrderMd.js";
+import {
+  orderConfirmedSms,
+  orderShippedSms,
+  orderDeliveredSms,
+} from "../../Utils/orderSmsTemplates.js";
+import sendSms from "../../Utils/sendSms.js";
 
 const getShippingCost = (subtotal) => {
   const flatCost = Number(process.env.SHIPPING_COST || 0);
@@ -30,7 +36,9 @@ export const createOrder = asyncHandler(async (req, res) => {
 
   if (cartResult.hadInvalidItems) {
     res.status(400);
-    throw new Error("برخی از محصولات سبد شما دیگر موجود نیستند، لطفاً سبد خرید را بررسی کنید");
+    throw new Error(
+      "برخی از محصولات سبد شما دیگر موجود نیستند، لطفاً سبد خرید را بررسی کنید",
+    );
   }
 
   const subtotal = cartResult.subtotal;
@@ -41,7 +49,11 @@ export const createOrder = asyncHandler(async (req, res) => {
   let appliedCoupon = null;
 
   if (couponCode) {
-    const result = await validateCouponForUser(couponCode, req.user._id, subtotal);
+    const result = await validateCouponForUser(
+      couponCode,
+      req.user._id,
+      subtotal,
+    );
     if (!result.valid) {
       res.status(400);
       throw new Error(result.message);
@@ -52,7 +64,12 @@ export const createOrder = asyncHandler(async (req, res) => {
   } else {
     const user = await User.findById(req.user._id);
     const pending = user.pendingLoyaltyDiscount;
-    if (pending && pending.percent > 0 && pending.expiresAt && pending.expiresAt > new Date()) {
+    if (
+      pending &&
+      pending.percent > 0 &&
+      pending.expiresAt &&
+      pending.expiresAt > new Date()
+    ) {
       discountAmount = Math.round((subtotal * pending.percent) / 100);
       discountSource = "loyalty";
     }
@@ -101,7 +118,11 @@ export const createOrder = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     success: true,
-    data: { orderId: order._id, orderNumber: order.orderNumber, paymentUrl: payment.paymentUrl },
+    data: {
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      paymentUrl: payment.paymentUrl,
+    },
   });
 });
 
@@ -113,22 +134,33 @@ export const verifyOrderPayment = asyncHandler(async (req, res) => {
   const order = await Order.findOne({ "payment.authority": Authority });
 
   if (!order) {
-    return res.redirect(`${process.env.CLIENT_URL}/checkout/result?status=not-found`);
+    return res.redirect(
+      `${process.env.CLIENT_URL}/checkout/result?status=not-found`,
+    );
   }
 
   if (order.status !== "pending_payment") {
     // قبلاً پردازش شده (مثلاً کاربر رفرش کرده)
-    return res.redirect(`${process.env.CLIENT_URL}/checkout/result?status=already-processed&order=${order.orderNumber}`);
+    return res.redirect(
+      `${process.env.CLIENT_URL}/checkout/result?status=already-processed&order=${order.orderNumber}`,
+    );
   }
 
   if (Status !== "OK") {
-    return res.redirect(`${process.env.CLIENT_URL}/checkout/result?status=failed&order=${order.orderNumber}`);
+    return res.redirect(
+      `${process.env.CLIENT_URL}/checkout/result?status=failed&order=${order.orderNumber}`,
+    );
   }
 
-  const verifyResult = await verifyPayment({ authority: Authority, amountToman: order.totalAmount });
+  const verifyResult = await verifyPayment({
+    authority: Authority,
+    amountToman: order.totalAmount,
+  });
 
   if (!verifyResult.success) {
-    return res.redirect(`${process.env.CLIENT_URL}/checkout/result?status=failed&order=${order.orderNumber}`);
+    return res.redirect(
+      `${process.env.CLIENT_URL}/checkout/result?status=failed&order=${order.orderNumber}`,
+    );
   }
 
   // ---------- پرداخت موفق: کسر موجودی، ثبت مصرف تخفیف، خالی کردن سبد ----------
@@ -140,13 +172,20 @@ export const verifyOrderPayment = asyncHandler(async (req, res) => {
     for (const item of order.items) {
       await Product.updateOne(
         { _id: item.product, "variants._id": item.variantId },
-        { $inc: { "variants.$.stock": -item.quantity } }
+        { $inc: { "variants.$.stock": -item.quantity } },
       );
     }
     order.stockDeducted = true;
   }
 
   await order.save();
+
+  sendSms(
+    user.phone,
+    orderConfirmedSms(order.orderNumber, order.totalAmount),
+  ).catch((err) =>
+    console.error("خطا در ارسال پیامک تایید سفارش:", err.message),
+  );
 
   const user = await User.findById(order.user);
 
@@ -163,12 +202,16 @@ export const verifyOrderPayment = asyncHandler(async (req, res) => {
   // خالی کردن سبد خرید کاربر
   await Cart.updateOne({ user: order.user }, { items: [] });
 
-  return res.redirect(`${process.env.CLIENT_URL}/checkout/result?status=success&order=${order.orderNumber}`);
+  return res.redirect(
+    `${process.env.CLIENT_URL}/checkout/result?status=success&order=${order.orderNumber}`,
+  );
 });
 
 // ---------- سفارش‌های کاربر ----------
 export const getMyOrders = asyncHandler(async (req, res) => {
-  const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 });
+  const orders = await Order.find({ user: req.user._id }).sort({
+    createdAt: -1,
+  });
   res.status(200).json({ success: true, data: orders });
 });
 
@@ -181,7 +224,10 @@ export const getOrderById = asyncHandler(async (req, res) => {
     throw new Error("سفارش یافت نشد");
   }
 
-  if (req.user.role !== "admin" && String(order.user) !== String(req.user._id)) {
+  if (
+    req.user.role !== "admin" &&
+    String(order.user) !== String(req.user._id)
+  ) {
     res.status(403);
     throw new Error("شما اجازه دسترسی به این سفارش را ندارید");
   }
@@ -199,14 +245,22 @@ export const getAllOrders = asyncHandler(async (req, res) => {
   const skip = (Number(page) - 1) * Number(limit);
 
   const [orders, total] = await Promise.all([
-    Order.find(filter).populate("user", "phone").sort({ createdAt: -1 }).skip(skip).limit(Number(limit)),
+    Order.find(filter)
+      .populate("user", "phone")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit)),
     Order.countDocuments(filter),
   ]);
 
   res.status(200).json({
     success: true,
     data: orders,
-    pagination: { total, page: Number(page), pages: Math.ceil(total / Number(limit)) },
+    pagination: {
+      total,
+      page: Number(page),
+      pages: Math.ceil(total / Number(limit)),
+    },
   });
 });
 
@@ -226,11 +280,14 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   }
 
   // اگه سفارش لغو/مرجوع بشه و قبلاً موجودی کسر شده بود، برگردونیم به انبار
-  if ((status === "cancelled" || status === "returned") && order.stockDeducted) {
+  if (
+    (status === "cancelled" || status === "returned") &&
+    order.stockDeducted
+  ) {
     for (const item of order.items) {
       await Product.updateOne(
         { _id: item.product, "variants._id": item.variantId },
-        { $inc: { "variants.$.stock": item.quantity } }
+        { $inc: { "variants.$.stock": item.quantity } },
       );
     }
     order.stockDeducted = false;
@@ -238,6 +295,18 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
 
   order.status = status;
   await order.save();
+
+  const user = await User.findById(order.user);
+
+  if (status === "shipped") {
+    sendSms(user.phone, orderShippedSms(order.orderNumber)).catch((err) =>
+      console.error("خطا در ارسال پیامک ارسال سفارش:", err.message),
+    );
+  } else if (status === "delivered") {
+    sendSms(user.phone, orderDeliveredSms(order.orderNumber)).catch((err) =>
+      console.error("خطا در ارسال پیامک تحویل سفارش:", err.message),
+    );
+  }
 
   res.status(200).json({ success: true, data: order });
 });

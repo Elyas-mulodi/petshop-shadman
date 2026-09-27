@@ -41,7 +41,12 @@ export const updateProfile = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: "پروفایل با موفقیت به‌روزرسانی شد",
-    data: { id: user._id, phone: user.phone, name: user.name, email: user.email },
+    data: {
+      id: user._id,
+      phone: user.phone,
+      name: user.name,
+      email: user.email,
+    },
   });
 });
 
@@ -61,5 +66,66 @@ export const changePassword = asyncHandler(async (req, res) => {
   user.password = newPassword;
   await user.save();
 
-  res.status(200).json({ success: true, message: "رمز عبور با موفقیت تغییر کرد" });
+  res
+    .status(200)
+    .json({ success: true, message: "رمز عبور با موفقیت تغییر کرد" });
+});
+
+// ---------- لیست/جستجوی کاربران (ادمین) ----------
+export const getAllUsers = asyncHandler(async (req, res) => {
+  const { search, page = 1, limit = 20 } = req.query;
+
+  const filter = { role: "user" };
+  if (search) {
+    filter.$or = [
+      { phone: { $regex: search, $options: "i" } },
+      { name: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } },
+    ];
+  }
+
+  const skip = (Number(page) - 1) * Number(limit);
+
+  const [users, total] = await Promise.all([
+    User.find(filter)
+      .select("-otpCode -otpExpires")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit)),
+    User.countDocuments(filter),
+  ]);
+
+  res.status(200).json({
+    success: true,
+    data: users,
+    pagination: {
+      total,
+      page: Number(page),
+      pages: Math.ceil(total / Number(limit)),
+    },
+  });
+});
+
+// ---------- فعال/غیرفعال (بلاک) کردن کاربر (ادمین) ----------
+export const toggleBlockUser = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id);
+
+  if (!user) {
+    res.status(404);
+    throw new Error("کاربر یافت نشد");
+  }
+
+  if (user.role === "admin") {
+    res.status(400);
+    throw new Error("امکان بلاک کردن حساب ادمین وجود ندارد");
+  }
+
+  user.isBlocked = !user.isBlocked;
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: user.isBlocked ? "کاربر بلاک شد" : "کاربر از بلاک خارج شد",
+    data: { id: user._id, isBlocked: user.isBlocked },
+  });
 });

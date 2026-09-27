@@ -67,7 +67,7 @@ export const verifyRegisterOtp = asyncHandler(async (req, res) => {
   const registrationToken = jwt.sign(
     { phone, purpose: "register" },
     process.env.JWT_ACCESS_SECRET,
-    { expiresIn: TEMP_TOKEN_EXPIRE }
+    { expiresIn: TEMP_TOKEN_EXPIRE },
   );
 
   res.status(200).json({
@@ -135,6 +135,12 @@ export const login = asyncHandler(async (req, res) => {
     throw new Error("شماره موبایل یا رمز عبور اشتباه است");
   }
 
+  if (user.isBlocked) {
+    res.status(403);
+    throw new Error(
+      "حساب کاربری شما مسدود شده است، برای اطلاعات بیشتر با پشتیبانی تماس بگیرید",
+    );
+  }
   const accessToken = generateAccessToken(user._id);
   const refreshToken = generateRefreshToken(user._id);
   setRefreshTokenCookie(res, refreshToken);
@@ -232,7 +238,7 @@ export const verifyForgotPasswordOtp = asyncHandler(async (req, res) => {
   const resetToken = jwt.sign(
     { phone, purpose: "reset" },
     process.env.JWT_ACCESS_SECRET,
-    { expiresIn: TEMP_TOKEN_EXPIRE }
+    { expiresIn: TEMP_TOKEN_EXPIRE },
   );
 
   res.status(200).json({ success: true, resetToken });
@@ -265,7 +271,9 @@ export const resetPassword = asyncHandler(async (req, res) => {
   user.password = password;
   await user.save();
 
-  res.status(200).json({ success: true, message: "رمز عبور با موفقیت تغییر کرد" });
+  res
+    .status(200)
+    .json({ success: true, message: "رمز عبور با موفقیت تغییر کرد" });
 });
 
 // ---------- ساخت ادمین اولیه (محافظت‌شده با Secret Key) ----------
