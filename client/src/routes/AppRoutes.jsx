@@ -11,6 +11,8 @@ import CartPage from "../pages/shop/CartPage";
 import CheckoutPage from "../pages/shop/CheckoutPage";
 import ProfilePage from "../pages/shop/ProfilePage";
 import MyOrdersPage from "../pages/shop/MyOrdersPage";
+import CategoriesPage from "../pages/shop/CategoriesPage";
+import DiscountsPage from "../pages/shop/DiscountsPage";
 
 const AppRoutes = () => {
   return (
@@ -22,6 +24,8 @@ const AppRoutes = () => {
         <Route path="/products" element={<ProductListPage />} />
         <Route path="/products/:slug" element={<ProductDetailPage />} />
         <Route path="/cart" element={<CartPage />} />
+        <Route path="/categories" element={<CategoriesPage />} />
+        <Route path="/discounts" element={<DiscountsPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/checkout" element={<CheckoutPage />} />
