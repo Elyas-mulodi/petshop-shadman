@@ -4,6 +4,8 @@ import AppRoutes from "./routes/AppRoutes";
 import axiosInstance from "./utils/axiosInstance";
 import { setCredentials, authCheckFinished } from "./features/auth/authSlice";
 import { getProfile } from "./features/auth/authApi";
+import { setServerCart } from "./features/cart/cartSlice";
+import { getCart } from "./features/cart/cartApi";
 
 function App() {
   const dispatch = useDispatch();
@@ -18,8 +20,12 @@ function App() {
           setCredentials({
             accessToken: data.accessToken,
             user: profileRes.data.data,
-          })
+          }),
         );
+        
+        getCart()
+          .then((res) => dispatch(setServerCart(res.data.data)))
+          .catch(() => {});
       } catch {
         dispatch(authCheckFinished());
       }

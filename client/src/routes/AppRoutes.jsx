@@ -13,6 +13,7 @@ import ProfilePage from "../pages/shop/ProfilePage";
 import MyOrdersPage from "../pages/shop/MyOrdersPage";
 import CategoriesPage from "../pages/shop/CategoriesPage";
 import DiscountsPage from "../pages/shop/DiscountsPage";
+import ForgotPasswordPage from "../pages/shop/ForgotPasswordPage";
 
 const AppRoutes = () => {
   return (
@@ -21,6 +22,7 @@ const AppRoutes = () => {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/products" element={<ProductListPage />} />
         <Route path="/products/:slug" element={<ProductDetailPage />} />
         <Route path="/cart" element={<CartPage />} />
