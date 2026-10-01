@@ -23,11 +23,11 @@ const brandSchema = new mongoose.Schema(
       default: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-brandSchema.pre("save", async function (next) {
-  if (!this.isModified("name")) return next();
+brandSchema.pre("validate", async function () {
+  if (!this.isModified("name")) return;
 
   let baseSlug = generateSlug(this.name);
   let slug = baseSlug;
@@ -41,7 +41,6 @@ brandSchema.pre("save", async function (next) {
   }
 
   this.slug = slug;
-  next();
 });
 
 const Brand = mongoose.model("Brand", brandSchema);

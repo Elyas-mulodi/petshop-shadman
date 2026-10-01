@@ -1,11 +1,10 @@
-﻿import { useMemo, useState } from "react";
+﻿import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { SlidersHorizontal } from "lucide-react";
 import ProductCard from "../../components/common/ProductCard";
 import Skeleton from "../../components/common/Skeleton";
 import ErrorState from "../../components/common/ErrorState";
-import FilterPanel from "../../components/products/FilterPanel";
-import FilterBottomSheet from "../../components/products/FilterBottomSheet";
+import FilterSidebar from "../../components/products/FilterSidebar";
+import FilterChipsBar from "../../components/products/FilterChipsBar";
 import SortDropdown from "../../components/products/SortDropdown";
 import InfiniteSentinel from "../../components/products/InfiniteSentinel";
 import useInfiniteProducts from "../../hooks/useInfiniteProducts";
@@ -16,7 +15,6 @@ const emptyFilters = { category: "", brands: [], minPrice: "", maxPrice: "", inS
 
 const ProductListPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [sheetOpen, setSheetOpen] = useState(false);
   const { categories } = useCategoryTree();
 
   const uiFilters = {
@@ -54,7 +52,7 @@ const ProductListPage = () => {
 
   const apiFilters = {
     category: categoryIds || undefined,
-    brand: uiFilters.brands[0] || undefined, // نکته زیر توضیح داده شده
+    brand: uiFilters.brands[0] || undefined, // بک‌اند فعلاً فقط یک برند قبول می‌کنه
     minPrice: uiFilters.minPrice || undefined,
     maxPrice: uiFilters.maxPrice || undefined,
     inStock: uiFilters.inStock ? "true" : undefined,
@@ -63,12 +61,6 @@ const ProductListPage = () => {
   };
 
   const { products, loading, loadingMore, hasMore, error, loadMore } = useInfiniteProducts(apiFilters);
-
-  const activeCount =
-    (uiFilters.category ? 1 : 0) +
-    uiFilters.brands.length +
-    (uiFilters.minPrice || uiFilters.maxPrice ? 1 : 0) +
-    (uiFilters.inStock ? 1 : 0);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8 lg:py-12">
@@ -81,25 +73,25 @@ const ProductListPage = () => {
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[240px_1fr]">
         {/* سایدبار دسکتاپ */}
         <aside className="hidden lg:block">
-          <FilterPanel draft={uiFilters} onChange={applyFilters} onClear={() => applyFilters(emptyFilters)} />
+          <FilterSidebar
+            draft={uiFilters}
+            onChange={applyFilters}
+            onClear={() => applyFilters(emptyFilters)}
+          />
         </aside>
 
         <div>
-          {/* نوار ابزار: دکمه فیلتر موبایل + مرتب‌سازی */}
-          <div className="mb-5 flex items-center justify-between">
-            <button
-              onClick={() => setSheetOpen(true)}
-              className="flex items-center gap-2 rounded-lg border border-line bg-card px-3.5 py-2 text-sm text-paper lg:hidden"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              فیلترها
-              {activeCount > 0 && (
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-bronze text-xs text-ink">
-                  {activeCount}
-                </span>
-              )}
-            </button>
-            <span className="hidden text-sm text-muted lg:block" />
+          {/* چیپ‌های فیلتر موبایل */}
+          <div className="mb-4 lg:hidden">
+            <FilterChipsBar
+              draft={uiFilters}
+              onChange={applyFilters}
+              onClear={() => applyFilters(emptyFilters)}
+            />
+          </div>
+
+          {/* نوار ابزار: مرتب‌سازی */}
+          <div className="mb-5 flex items-center justify-end">
             <SortDropdown value={sort} onChange={updateSort} />
           </div>
 
@@ -136,13 +128,6 @@ const ProductListPage = () => {
           )}
         </div>
       </div>
-
-      <FilterBottomSheet
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        filters={uiFilters}
-        onApply={applyFilters}
-      />
     </div>
   );
 };

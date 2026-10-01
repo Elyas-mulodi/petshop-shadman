@@ -4,7 +4,7 @@ import generateSlug from "../../Utils/generateSlug.js";
 const variantAttributeSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
-    value: { type: String, required: true, trim: true }, 
+    value: { type: String, required: true, trim: true },
   },
   { _id: false }
 );
@@ -96,8 +96,9 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-productSchema.pre("save", async function (next) {
-  if (!this.isModified("name")) return next();
+// ساخت خودکار slug — باید قبل از validation اجرا بشه چون slug الزامیه
+productSchema.pre("validate", async function () {
+  if (!this.isModified("name")) return;
 
   let baseSlug = generateSlug(this.name);
   let slug = baseSlug;
@@ -111,17 +112,16 @@ productSchema.pre("save", async function (next) {
   }
 
   this.slug = slug;
-  next();
 });
 
-productSchema.pre("save", function (next) {
+// ساخت خودکار SKU برای واریانت‌هایی که SKU ندارن
+productSchema.pre("save", async function () {
   this.variants.forEach((variant, index) => {
     if (!variant.sku) {
       const randomPart = Math.random().toString(36).substring(2, 7).toUpperCase();
       variant.sku = `${this.slug || "PRD"}-${index + 1}-${randomPart}`;
     }
   });
-  next();
 });
 
 productSchema.methods.isDiscountActive = function () {

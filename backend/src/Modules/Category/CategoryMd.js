@@ -27,11 +27,11 @@ const categorySchema = new mongoose.Schema(
       default: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-categorySchema.pre("save", async function (next) {
-  if (!this.isModified("name")) return next();
+categorySchema.pre("validate", async function () {
+  if (!this.isModified("name")) return;
 
   let baseSlug = generateSlug(this.name);
   let slug = baseSlug;
@@ -45,7 +45,6 @@ categorySchema.pre("save", async function (next) {
   }
 
   this.slug = slug;
-  next();
 });
 
 const Category = mongoose.model("Category", categorySchema);
