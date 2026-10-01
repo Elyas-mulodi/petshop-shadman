@@ -16,7 +16,9 @@ export const createProduct = asyncHandler(async (req, res) => {
     isActive,
   } = req.body;
 
-  const images = req.files ? req.files.map((file) => getFileUrl("products", file.filename)) : [];
+  const images = req.files
+    ? req.files.map((file) => getFileUrl("products", file.filename))
+    : [];
 
   const product = await Product.create({
     name,
@@ -50,7 +52,7 @@ export const getProducts = asyncHandler(async (req, res) => {
   } = req.query;
 
   const filter = { isActive: true };
-  if (category) filter.categories = category;
+  if (category) filter.categories = { $in: category.split(",") };
   if (brand) filter.brand = brand;
   if (search) filter.name = { $regex: search, $options: "i" };
 
@@ -79,7 +81,9 @@ export const getProducts = asyncHandler(async (req, res) => {
     if (Array.isArray(parsedAttrs) && parsedAttrs.length > 0) {
       // هر واریانتی که هم‌زمان همه‌ی ویژگی‌های درخواستی رو داشته باشه (مثلا هم وزن=3کیلو هم طعم=مرغ)
       variantElemMatch.attributes = {
-        $all: parsedAttrs.map((a) => ({ $elemMatch: { name: a.name, value: a.value } })),
+        $all: parsedAttrs.map((a) => ({
+          $elemMatch: { name: a.name, value: a.value },
+        })),
       };
     }
   }
@@ -139,7 +143,12 @@ export const getDiscountedProducts = asyncHandler(async (req, res) => {
     isActive: true,
     discountPercent: { $gt: 0 },
     $and: [
-      { $or: [{ discountStartDate: null }, { discountStartDate: { $lte: now } }] },
+      {
+        $or: [
+          { discountStartDate: null },
+          { discountStartDate: { $lte: now } },
+        ],
+      },
       { $or: [{ discountEndDate: null }, { discountEndDate: { $gte: now } }] },
     ],
   })
@@ -151,7 +160,10 @@ export const getDiscountedProducts = asyncHandler(async (req, res) => {
 
 // ---------- یک محصول با slug (عمومی) ----------
 export const getProductBySlug = asyncHandler(async (req, res) => {
-  const product = await Product.findOne({ slug: req.params.slug, isActive: true })
+  const product = await Product.findOne({
+    slug: req.params.slug,
+    isActive: true,
+  })
     .populate("brand", "name logo")
     .populate("categories", "name slug");
 
@@ -187,10 +199,13 @@ export const updateProduct = asyncHandler(async (req, res) => {
     if (req.body[field] !== undefined) product[field] = req.body[field];
   });
 
-  if (req.body.isActive !== undefined) product.isActive = req.body.isActive === "true";
+  if (req.body.isActive !== undefined)
+    product.isActive = req.body.isActive === "true";
 
   if (req.files && req.files.length > 0) {
-    const newImages = req.files.map((file) => getFileUrl("products", file.filename));
+    const newImages = req.files.map((file) =>
+      getFileUrl("products", file.filename),
+    );
     product.images = [...product.images, ...newImages];
   }
 

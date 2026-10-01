@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { motion } from "motion/react";
 import { ArrowLeft } from "lucide-react";
 import useCategoryTree from "../../features/categories/useCategoryTree";
+import ErrorState from "../common/ErrorState";
 
 const ease = [0.22, 1, 0.36, 1];
 
@@ -16,8 +17,7 @@ const column = {
 };
 
 const MegaMenu = ({ onNavigate }) => {
-  const { categories, loading } = useCategoryTree();
-
+  const { categories, loading, error, retry } = useCategoryTree();
   return (
     <motion.div
       initial={{ opacity: 0, y: -8 }}
@@ -29,10 +29,13 @@ const MegaMenu = ({ onNavigate }) => {
       <div className="mx-auto max-w-7xl px-8 py-8">
         {loading ? (
           <div className="grid grid-cols-4 gap-8">
+            2
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="h-28 animate-pulse rounded-lg bg-well" />
             ))}
           </div>
+        ) : error ? (
+          <ErrorState compact message={error} onRetry={retry} />
         ) : categories.length === 0 ? (
           <p className="text-sm text-muted">هنوز دسته‌بندی‌ای ثبت نشده است.</p>
         ) : (
