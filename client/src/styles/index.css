@@ -24,5 +24,6 @@
 
   body {
     @apply bg-ink text-paper antialiased;
+    overflow-anchor: none;
   }
 }

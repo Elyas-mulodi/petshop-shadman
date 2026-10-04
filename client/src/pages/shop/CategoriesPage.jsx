@@ -36,7 +36,7 @@ const CategoriesPage = () => {
           variants={grid}
           initial="hidden"
           animate="show"
-          className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
+          className="grid grid-cols-2 gap-4 md:grid-cols-3"
         >
           {categories.map((cat) => {
             const image = getImageUrl(cat.image);

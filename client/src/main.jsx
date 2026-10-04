@@ -7,6 +7,10 @@ import { store } from "./app/store";
 import App from "./App.jsx";
 import "./styles/index.css";
 
+
+if ("scrollRestoration" in window.history) {
+  window.history.scrollRestoration = "manual";
+}
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <Provider store={store}>

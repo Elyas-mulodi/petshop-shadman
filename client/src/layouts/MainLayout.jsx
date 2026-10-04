@@ -9,7 +9,8 @@ const MainLayout = () => {
   const outlet = useOutlet();
 
   useEffect(() => {
-    window.scrollTo(0, 0);
+    const id = requestAnimationFrame(() => window.scrollTo(0, 0));
+    return () => cancelAnimationFrame(id);
   }, [location.pathname]);
 
   return (

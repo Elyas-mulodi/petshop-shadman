@@ -14,3 +14,14 @@ export const findCategoryById = (tree, id) => {
   }
   return null;
 };
+
+// مسیر کامل از ریشه تا دسته موردنظر (برای breadcrumb) — خروجی: [دسته سطح۱, دسته سطح۲, ...]
+export const findCategoryPath = (tree, id, path = []) => {
+  for (const cat of tree) {
+    const nextPath = [...path, cat];
+    if (cat._id === id) return nextPath;
+    const found = findCategoryPath(cat.children || [], id, nextPath);
+    if (found) return found;
+  }
+  return null;
+};
