@@ -8,6 +8,7 @@ import {
   getOrderById,
   getAllOrders,
   updateOrderStatus,
+  getShippingConfig,
 } from "./OrderCn.js";
 import { createOrderSchema, updateOrderStatusSchema } from "./OrderValidation.js";
 
@@ -19,6 +20,8 @@ router.get("/verify", verifyOrderPayment);
 // ---------- کاربر ----------
 router.post("/", protect, validate(createOrderSchema), createOrder);
 router.get("/my-orders", protect, getMyOrders);
+router.get("/verify", verifyOrderPayment);
+router.get("/shipping-config", getShippingConfig);
 router.get("/:id", protect, getOrderById);
 
 // ---------- ادمین ----------

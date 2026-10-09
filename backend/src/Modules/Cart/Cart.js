@@ -8,6 +8,7 @@ import {
   removeCartItem,
   clearCart,
   syncCart,
+  previewCart,
 } from "./CartCn.js";
 import {
   addToCartSchema,
@@ -18,7 +19,10 @@ import {
 
 const router = express.Router();
 
-// همه‌ی مسیرهای سبد خرید نیاز به لاگین دارن (طبق تصمیم قبلی: سبد مهمان فقط سمت کلاینته)
+// عمومی: پیش‌نمایش سبد مهمان (باید قبل از protect باشه)
+router.post("/preview", validate(syncCartSchema), previewCart);
+
+// بقیه مسیرها نیاز به لاگین دارن
 router.use(protect);
 
 router.get("/", getCart);

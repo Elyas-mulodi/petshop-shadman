@@ -310,3 +310,14 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
 
   res.status(200).json({ success: true, data: order });
 });
+
+// ---------- تنظیمات ارسال (عمومی) ----------
+export const getShippingConfig = asyncHandler(async (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: {
+      shippingCost: Number(process.env.SHIPPING_COST || 0),
+      freeShippingThreshold: Number(process.env.FREE_SHIPPING_THRESHOLD || 0),
+    },
+  });
+});

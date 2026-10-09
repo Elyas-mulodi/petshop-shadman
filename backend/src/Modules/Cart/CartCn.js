@@ -20,14 +20,25 @@ export const getCart = asyncHandler(async (req, res) => {
   const cart = await getOrCreateCart(req.user._id);
   const result = await buildCartResponse(cart);
 
+  if (result.hadInvalidItems) {
+    cart.items = result.items.map((i) => ({
+      product: i.productId,
+      variantId: i.variantId,
+      quantity: i.quantity,
+    }));
+    await cart.save();
+  }
+
   res.status(200).json({ success: true, data: result });
 });
-
 // ---------- افزودن آیتم به سبد ----------
 export const addToCart = asyncHandler(async (req, res) => {
   const { productId, variantId, quantity } = req.body;
 
-  const { product, variant, error } = await findProductAndVariant(productId, variantId);
+  const { product, variant, error } = await findProductAndVariant(
+    productId,
+    variantId,
+  );
 
   if (error) {
     res.status(404);
@@ -36,7 +47,9 @@ export const addToCart = asyncHandler(async (req, res) => {
 
   const cart = await getOrCreateCart(req.user._id);
 
-  const existingItem = cart.items.find((i) => String(i.variantId) === variantId);
+  const existingItem = cart.items.find(
+    (i) => String(i.variantId) === variantId,
+  );
   const currentQty = existingItem ? existingItem.quantity : 0;
   const requestedTotalQty = currentQty + quantity;
 
@@ -71,7 +84,10 @@ export const updateCartItem = asyncHandler(async (req, res) => {
     throw new Error("این آیتم در سبد خرید یافت نشد");
   }
 
-  const { variant, error } = await findProductAndVariant(item.product, variantId);
+  const { variant, error } = await findProductAndVariant(
+    item.product,
+    variantId,
+  );
 
   if (error) {
     res.status(404);
@@ -108,7 +124,9 @@ export const clearCart = asyncHandler(async (req, res) => {
   cart.items = [];
   await cart.save();
 
-  res.status(200).json({ success: true, data: { items: [], subtotal: 0, itemsCount: 0 } });
+  res
+    .status(200)
+    .json({ success: true, data: { items: [], subtotal: 0, itemsCount: 0 } });
 });
 
 // ---------- سینک سبد مهمان (localStorage) با سبد سرور، موقع لاگین/ثبت‌نام ----------
@@ -118,25 +136,53 @@ export const syncCart = asyncHandler(async (req, res) => {
   const cart = await getOrCreateCart(req.user._id);
 
   for (const localItem of items) {
-    const { variant, error } = await findProductAndVariant(localItem.productId, localItem.variantId);
+    const { variant, error } = await findProductAndVariant(
+      localItem.productId,
+      localItem.variantId,
+    );
 
     if (error) continue; // آیتم نامعتبر/حذف‌شده از سبد لوکال، نادیده گرفته میشه
 
-    const existingItem = cart.items.find((i) => String(i.variantId) === localItem.variantId);
+    const existingItem = cart.items.find(
+      (i) => String(i.variantId) === localItem.variantId,
+    );
     const currentQty = existingItem ? existingItem.quantity : 0;
-    const mergedQty = Math.min(currentQty + localItem.quantity, variant.stock, MAX_QTY);
+    const mergedQty = Math.min(
+      currentQty + localItem.quantity,
+      variant.stock,
+      MAX_QTY,
+    );
 
     if (mergedQty <= 0) continue;
 
     if (existingItem) {
       existingItem.quantity = mergedQty;
     } else {
-      cart.items.push({ product: localItem.productId, variantId: localItem.variantId, quantity: mergedQty });
+      cart.items.push({
+        product: localItem.productId,
+        variantId: localItem.variantId,
+        quantity: mergedQty,
+      });
     }
   }
 
   await cart.save();
 
   const result = await buildCartResponse(cart);
+  res.status(200).json({ success: true, data: result });
+});
+
+// ---------- پیش‌نمایش سبد مهمان (بدون لاگین، چیزی ذخیره نمی‌شه) ----------
+export const previewCart = asyncHandler(async (req, res) => {
+  const { items } = req.body;
+
+  const result = await buildCartResponse({
+    items: items.map((i) => ({
+      product: i.productId,
+      variantId: i.variantId,
+      quantity: i.quantity,
+    })),
+  });
+
   res.status(200).json({ success: true, data: result });
 });
