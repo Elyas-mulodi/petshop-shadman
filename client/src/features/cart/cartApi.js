@@ -8,3 +8,5 @@ export const updateCartItem = (variantId, quantity) =>
 export const removeCartItem = (variantId) =>
   axiosInstance.delete("/cart/remove", { data: { variantId } });
 export const syncCart = (items) => axiosInstance.post("/cart/sync", { items });
+export const previewCart = (items) =>
+  axiosInstance.post("/cart/preview", { items });

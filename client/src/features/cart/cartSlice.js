@@ -45,12 +45,18 @@ const cartSlice = createSlice({
       saveGuestCart(state.guestItems);
     },
     removeGuestCartItem: (state, action) => {
-      state.guestItems = state.guestItems.filter((i) => i.variantId !== action.payload);
+      state.guestItems = state.guestItems.filter(
+        (i) => i.variantId !== action.payload,
+      );
       saveGuestCart(state.guestItems);
     },
     clearGuestCart: (state) => {
       state.guestItems = [];
       localStorage.removeItem("guestCart");
+    },
+    replaceGuestCart: (state, action) => {
+      state.guestItems = action.payload;
+      saveGuestCart(state.guestItems);
     },
     setServerCart: (state, action) => {
       state.serverCart = action.payload;
@@ -68,6 +74,7 @@ export const {
   clearGuestCart,
   setServerCart,
   setCartLoading,
+  replaceGuestCart
 } = cartSlice.actions;
 
 export default cartSlice.reducer;

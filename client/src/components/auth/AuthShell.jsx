@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { AnimatePresence, motion } from "motion/react";
 import Logo from "../common/Logo";
@@ -7,9 +7,9 @@ const ease = [0.22, 1, 0.36, 1];
 
 const AuthShell = ({ title, subtitle, stepKey, progress, children }) => {
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
+  const from = useLocation().state?.from; 
 
-  if (isAuthenticated) return <Navigate to="/" replace />;
-
+  if (isAuthenticated) return <Navigate to={from || "/"} replace />;
   return (
     <div className="mx-auto grid min-h-[calc(100vh-9rem)] max-w-6xl grid-cols-1 lg:grid-cols-2">
       {/* نیمه برند — ثابت، بدون حرکت */}
@@ -20,10 +20,14 @@ const AuthShell = ({ title, subtitle, stepKey, progress, children }) => {
           <h1 className="max-w-sm font-display text-4xl font-bold leading-[1.3] text-paper">
             {title}
           </h1>
-          <p className="mt-4 max-w-xs text-sm leading-7 text-muted">{subtitle}</p>
+          <p className="mt-4 max-w-xs text-sm leading-7 text-muted">
+            {subtitle}
+          </p>
         </div>
 
-        <p className="text-xs text-muted">© {new Date().getFullYear()} پت شاپ شادمان</p>
+        <p className="text-xs text-muted">
+          © {new Date().getFullYear()} پت شاپ شادمان
+        </p>
       </div>
 
       {/* نیمه فرم */}
