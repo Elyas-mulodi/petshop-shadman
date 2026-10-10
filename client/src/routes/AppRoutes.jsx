@@ -14,6 +14,7 @@ import MyOrdersPage from "../pages/shop/MyOrdersPage";
 import CategoriesPage from "../pages/shop/CategoriesPage";
 import DiscountsPage from "../pages/shop/DiscountsPage";
 import ForgotPasswordPage from "../pages/shop/ForgotPasswordPage";
+import CheckoutResultPage from "../pages/shop/CheckoutResultPage";
 
 const AppRoutes = () => {
   return (
@@ -26,6 +27,7 @@ const AppRoutes = () => {
         <Route path="/products" element={<ProductListPage />} />
         <Route path="/products/:slug" element={<ProductDetailPage />} />
         <Route path="/cart" element={<CartPage />} />
+        <Route path="/checkout/result" element={<CheckoutResultPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/discounts" element={<DiscountsPage />} />
 

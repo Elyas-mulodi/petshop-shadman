@@ -1,5 +1,7 @@
 import asyncHandler from "express-async-handler";
 import Coupon from "./CouponMd.js";
+import Cart from "../Cart/CartMd.js";
+import { buildCartResponse } from "../../Utils/cartHelper.js";
 
 // ---------- ساخت کد تخفیف (ادمین) ----------
 export const createCoupon = asyncHandler(async (req, res) => {
@@ -53,35 +55,30 @@ export const deleteCoupon = asyncHandler(async (req, res) => {
 // نکته: این تابع فقط اعتبارسنجی و محاسبه می‌کنه، ثبت استفاده (usedBy) موقع نهایی شدن سفارش انجام میشه
 export const applyCoupon = asyncHandler(async (req, res) => {
   const { code } = req.body;
-  const { cartTotal } = req.body;
 
-  const coupon = await Coupon.findOne({ code: code.toUpperCase(), isActive: true });
+  const cart = await Cart.findOne({ user: req.user._id });
 
-  if (!coupon) {
-    res.status(404);
-    throw new Error("کد تخفیف نامعتبر است");
-  }
-
-  if (coupon.expiresAt && coupon.expiresAt < new Date()) {
+  if (!cart || cart.items.length === 0) {
     res.status(400);
-    throw new Error("این کد تخفیف منقضی شده است");
+    throw new Error("سبد خرید شما خالی است");
   }
 
-  if (coupon.usedBy.some((id) => String(id) === String(req.user._id))) {
+  const { subtotal } = await buildCartResponse(cart);
+
+  const result = await validateCouponForUser(code, req.user._id, subtotal);
+
+  if (!result.valid) {
     res.status(400);
-    throw new Error("شما قبلاً از این کد تخفیف استفاده کرده‌اید");
+    throw new Error(result.message);
   }
-
-  if (cartTotal < coupon.minCartAmount) {
-    res.status(400);
-    throw new Error(`حداقل مبلغ سبد برای این کد ${coupon.minCartAmount.toLocaleString()} تومان است`);
-  }
-
-  const discountAmount = coupon.calculateDiscount(cartTotal);
 
   res.status(200).json({
     success: true,
-    data: { code: coupon.code, discountAmount, couponId: coupon._id },
+    data: {
+      code: result.coupon.code,
+      discountAmount: result.discountAmount,
+      couponId: result.coupon._id,
+    },
   });
 });
 
