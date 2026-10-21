@@ -36,3 +36,10 @@ export const deleteLoyaltyTier = asyncHandler(async (req, res) => {
   await tier.deleteOne();
   res.status(200).json({ success: true, message: "سطح پلکانی حذف شد" });
 });
+
+export const getPublicLoyaltyTiers = asyncHandler(async (req, res) => {
+  const tiers = await LoyaltyTier.find({ isActive: true })
+    .select("minOrderAmount discountPercent")
+    .sort({ minOrderAmount: 1 });
+  res.status(200).json({ success: true, data: tiers });
+});

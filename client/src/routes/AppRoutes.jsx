@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import ProtectedRoute from "./ProtectedRoute";
 
@@ -10,7 +10,6 @@ import ProductDetailPage from "../pages/shop/ProductDetailPage";
 import CartPage from "../pages/shop/CartPage";
 import CheckoutPage from "../pages/shop/CheckoutPage";
 import ProfilePage from "../pages/shop/ProfilePage";
-import MyOrdersPage from "../pages/shop/MyOrdersPage";
 import CategoriesPage from "../pages/shop/CategoriesPage";
 import DiscountsPage from "../pages/shop/DiscountsPage";
 import ForgotPasswordPage from "../pages/shop/ForgotPasswordPage";
@@ -34,7 +33,10 @@ const AppRoutes = () => {
         <Route element={<ProtectedRoute />}>
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/my-orders" element={<MyOrdersPage />} />
+          <Route
+            path="/my-orders"
+            element={<Navigate to="/profile?tab=orders" replace />}
+          />{" "}
         </Route>
       </Route>
     </Routes>

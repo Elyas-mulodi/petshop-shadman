@@ -2,24 +2,38 @@ import asyncHandler from "express-async-handler";
 import Cart from "../Cart/CartMd.js";
 import Product from "../Product/ProductMd.js";
 import User from "../User/UserMd.js";
-import { buildCartResponse } from "../../Utils/cartHelper.js";
+import {
+  buildCartResponse,
+  findProductAndVariant,
+} from "../../Utils/cartHelper.js";
 import { validateCouponForUser, markCouponAsUsed } from "../Coupon/CouponCn.js";
 import { grantLoyaltyDiscount } from "../../Utils/loyaltyHelper.js";
 import { requestPayment, verifyPayment } from "../../Utils/zarinpal.js";
 import generateOrderNumber from "../../Utils/generateOrderNumber.js";
-import Order from "./OrderMd.js";
+import sendSms from "../../Utils/sendSms.js";
 import {
   orderConfirmedSms,
   orderShippedSms,
   orderDeliveredSms,
 } from "../../Utils/orderSmsTemplates.js";
-import sendSms from "../../Utils/sendSms.js";
+import Order, { ORDER_HOLD_MS } from "./OrderMd.js";
 
 const getShippingCost = (subtotal) => {
   const flatCost = Number(process.env.SHIPPING_COST || 0);
   const freeThreshold = Number(process.env.FREE_SHIPPING_THRESHOLD || 0);
   return subtotal >= freeThreshold ? 0 : flatCost;
 };
+
+// ---------- تنظیمات ارسال (عمومی) ----------
+export const getShippingConfig = asyncHandler(async (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: {
+      shippingCost: Number(process.env.SHIPPING_COST || 0),
+      freeShippingThreshold: Number(process.env.FREE_SHIPPING_THRESHOLD || 0),
+    },
+  });
+});
 
 // ---------- ساخت سفارش از روی سبد خرید + شروع پرداخت ----------
 export const createOrder = asyncHandler(async (req, res) => {
@@ -126,29 +140,29 @@ export const createOrder = asyncHandler(async (req, res) => {
   });
 });
 
-// ---------- بازگشت از درگاه زرین‌پال و تایید پرداخت ----------
-// نکته: زرین‌پال مستقیماً مرورگر کاربر رو به این آدرس ریدایرکت می‌کنه (بدون نیاز به لاگین)
+// ---------- بازگشت از درگاه و تایید پرداخت ----------
+// نکته: مرورگر کاربر مستقیماً به این آدرس ریدایرکت می‌شه (بدون نیاز به لاگین)
 export const verifyOrderPayment = asyncHandler(async (req, res) => {
   const { Authority, Status } = req.query;
+  const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+  const resultUrl = `${clientUrl}/checkout/result`;
 
   const order = await Order.findOne({ "payment.authority": Authority });
 
   if (!order) {
-    return res.redirect(
-      `${process.env.CLIENT_URL}/checkout/result?status=not-found`,
-    );
+    return res.redirect(`${resultUrl}?status=not-found`);
   }
 
   if (order.status !== "pending_payment") {
     // قبلاً پردازش شده (مثلاً کاربر رفرش کرده)
     return res.redirect(
-      `${process.env.CLIENT_URL}/checkout/result?status=already-processed&order=${order.orderNumber}`,
+      `${resultUrl}?status=already-processed&order=${order.orderNumber}`,
     );
   }
 
   if (Status !== "OK") {
     return res.redirect(
-      `${process.env.CLIENT_URL}/checkout/result?status=failed&order=${order.orderNumber}`,
+      `${resultUrl}?status=failed&order=${order.orderNumber}`,
     );
   }
 
@@ -159,11 +173,11 @@ export const verifyOrderPayment = asyncHandler(async (req, res) => {
 
   if (!verifyResult.success) {
     return res.redirect(
-      `${process.env.CLIENT_URL}/checkout/result?status=failed&order=${order.orderNumber}`,
+      `${resultUrl}?status=failed&order=${order.orderNumber}`,
     );
   }
 
-  // ---------- پرداخت موفق: کسر موجودی، ثبت مصرف تخفیف، خالی کردن سبد ----------
+  // ---------- پرداخت موفق: ثبت پرداخت و کسر موجودی ----------
   order.status = "paid";
   order.payment.refId = verifyResult.refId;
   order.payment.paidAt = new Date();
@@ -180,39 +194,155 @@ export const verifyOrderPayment = asyncHandler(async (req, res) => {
 
   await order.save();
 
-  sendSms(
-    user.phone,
-    orderConfirmedSms(order.orderNumber, order.totalAmount),
-  ).catch((err) =>
-    console.error("خطا در ارسال پیامک تایید سفارش:", err.message),
-  );
+  // ---------- کارهای بعد از پرداخت: اگه خطا بدن، پرداخت موفق باطل نمی‌شه ----------
+  try {
+    const user = await User.findById(order.user);
 
-  const user = await User.findById(order.user);
+    if (order.discountSource === "coupon" && order.couponId) {
+      await markCouponAsUsed(order.couponId, order.user);
+    } else if (order.discountSource === "loyalty") {
+      user.pendingLoyaltyDiscount = { percent: 0, expiresAt: null };
+      await user.save();
+    }
 
-  if (order.discountSource === "coupon" && order.couponId) {
-    await markCouponAsUsed(order.couponId, order.user);
-  } else if (order.discountSource === "loyalty") {
-    user.pendingLoyaltyDiscount = { percent: 0, expiresAt: null };
-    await user.save();
+    // اعطای تخفیف پلکانی بعدی بر اساس مبلغ همین سفارش
+    await grantLoyaltyDiscount(user, order.subtotal);
+
+    // خالی کردن سبد خرید
+    await Cart.updateOne({ user: order.user }, { items: [] });
+
+    // پیامک تایید سفارش (بدون await؛ خطای پیامک نباید چیزی رو خراب کنه)
+    sendSms(
+      user.phone,
+      orderConfirmedSms(order.orderNumber, order.totalAmount),
+    ).catch((err) =>
+      console.error("خطا در ارسال پیامک تایید سفارش:", err.message),
+    );
+  } catch (err) {
+    console.error(
+      `❌ Post-payment tasks failed for order ${order.orderNumber}:`,
+      err,
+    );
   }
 
-  // اعطای تخفیف پلکانی بعدی بر اساس مبلغ همین سفارش
-  await grantLoyaltyDiscount(user, order.subtotal);
-
-  // خالی کردن سبد خرید کاربر
-  await Cart.updateOne({ user: order.user }, { items: [] });
-
-  return res.redirect(
-    `${process.env.CLIENT_URL}/checkout/result?status=success&order=${order.orderNumber}`,
-  );
+  return res.redirect(`${resultUrl}?status=success&order=${order.orderNumber}`);
 });
 
 // ---------- سفارش‌های کاربر ----------
 export const getMyOrders = asyncHandler(async (req, res) => {
-  const orders = await Order.find({ user: req.user._id }).sort({
-    createdAt: -1,
-  });
+  const orders = await Order.find({
+    user: req.user._id,
+    // سفارش پرداخت‌نشده‌ای که مهلتش تموم شده و هنوز توسط TTL پاک نشده، نمایش داده نمی‌شه
+    $nor: [{ status: "pending_payment", expiresAt: { $lt: new Date() } }],
+  })
+    .select("-payment.authority")
+    .sort({ createdAt: -1 });
+
   res.status(200).json({ success: true, data: orders });
+});
+
+// ---------- پرداخت مجدد یک سفارش پرداخت‌نشده (کاربر) ----------
+export const retryOrderPayment = asyncHandler(async (req, res) => {
+  const order = await Order.findOne({ _id: req.params.id, user: req.user._id });
+
+  if (!order) {
+    res.status(404);
+    throw new Error("سفارش یافت نشد");
+  }
+
+  if (order.status !== "pending_payment") {
+    res.status(400);
+    throw new Error("این سفارش در انتظار پرداخت نیست");
+  }
+
+  if (order.expiresAt && order.expiresAt < new Date()) {
+    res.status(400);
+    throw new Error("مهلت پرداخت این سفارش تمام شده است. سفارش جدید ثبت کنید");
+  }
+
+  // موجودی فقط بعد از پرداخت کسر می‌شه، پس قبل از پرداخت دوباره باید چک بشه
+  for (const item of order.items) {
+    const { variant, error } = await findProductAndVariant(
+      item.product,
+      item.variantId,
+    );
+
+    if (error || variant.stock < item.quantity) {
+      res.status(400);
+      throw new Error(
+        `«${item.productName}» دیگر به تعداد درخواستی موجود نیست. سفارش را لغو و دوباره ثبت کنید`,
+      );
+    }
+  }
+
+  // تخفیف سفارش نباید بین زمان ثبت و پرداخت مجدد باطل یا مصرف شده باشه
+  const discountInvalidMessage =
+    "تخفیف اعمال‌شده روی این سفارش دیگر معتبر نیست. سفارش را لغو و دوباره ثبت کنید";
+
+  if (order.discountSource === "coupon") {
+    const result = await validateCouponForUser(
+      order.couponCode,
+      order.user,
+      order.subtotal,
+    );
+    if (!result.valid) {
+      res.status(400);
+      throw new Error(discountInvalidMessage);
+    }
+  } else if (order.discountSource === "loyalty") {
+    const pending = req.user.pendingLoyaltyDiscount;
+    const stillValid =
+      pending &&
+      pending.percent > 0 &&
+      pending.expiresAt &&
+      pending.expiresAt > new Date();
+    if (!stillValid) {
+      res.status(400);
+      throw new Error(discountInvalidMessage);
+    }
+  }
+
+  const payment = await requestPayment({
+    amountToman: order.totalAmount,
+    description: `پرداخت سفارش ${order.orderNumber} - پت شاپ شادمان`,
+    mobile: req.user.phone,
+  });
+
+  if (!payment.success) {
+    res.status(502);
+    throw new Error(payment.error);
+  }
+
+  order.payment.authority = payment.authority;
+  order.expiresAt = new Date(Date.now() + ORDER_HOLD_MS);
+  await order.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      paymentUrl: payment.paymentUrl,
+    },
+  });
+});
+
+// ---------- لغو سفارش پرداخت‌نشده توسط خود کاربر ----------
+export const cancelMyOrder = asyncHandler(async (req, res) => {
+  const order = await Order.findOneAndUpdate(
+    { _id: req.params.id, user: req.user._id, status: "pending_payment" },
+    { status: "cancelled" },
+    { new: true },
+  );
+
+  if (!order) {
+    res.status(404);
+    throw new Error("سفارش پیدا نشد یا دیگر قابل لغو نیست");
+  }
+
+  res
+    .status(200)
+    .json({ success: true, data: { _id: order._id, status: order.status } });
 });
 
 // ---------- جزئیات یک سفارش (کاربر فقط سفارش خودش، ادمین همه) ----------
@@ -296,28 +426,18 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   order.status = status;
   await order.save();
 
+  // پیامک تغییر وضعیت (بدون await؛ خطای پیامک نباید تغییر وضعیت رو خراب کنه)
   const user = await User.findById(order.user);
 
-  if (status === "shipped") {
+  if (user && status === "shipped") {
     sendSms(user.phone, orderShippedSms(order.orderNumber)).catch((err) =>
       console.error("خطا در ارسال پیامک ارسال سفارش:", err.message),
     );
-  } else if (status === "delivered") {
+  } else if (user && status === "delivered") {
     sendSms(user.phone, orderDeliveredSms(order.orderNumber)).catch((err) =>
       console.error("خطا در ارسال پیامک تحویل سفارش:", err.message),
     );
   }
 
   res.status(200).json({ success: true, data: order });
-});
-
-// ---------- تنظیمات ارسال (عمومی) ----------
-export const getShippingConfig = asyncHandler(async (req, res) => {
-  res.status(200).json({
-    success: true,
-    data: {
-      shippingCost: Number(process.env.SHIPPING_COST || 0),
-      freeShippingThreshold: Number(process.env.FREE_SHIPPING_THRESHOLD || 0),
-    },
-  });
 });
