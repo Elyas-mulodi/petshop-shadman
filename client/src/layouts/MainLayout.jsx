@@ -1,8 +1,10 @@
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useLocation, useOutlet } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 import Header from "../components/layout/Header";
 import Footer from "../components/layout/Footer";
+import PageFallback from "../components/common/PageFallback";
+import RouteErrorBoundary from "../components/common/RouteErrorBoundary";
 
 const MainLayout = () => {
   const location = useLocation();
@@ -25,7 +27,9 @@ const MainLayout = () => {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           >
-            {outlet}
+            <RouteErrorBoundary>
+              <Suspense fallback={<PageFallback />}>{outlet}</Suspense>
+            </RouteErrorBoundary>
           </motion.div>
         </AnimatePresence>
       </main>

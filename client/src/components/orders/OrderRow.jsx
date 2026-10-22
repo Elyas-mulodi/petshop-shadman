@@ -6,6 +6,7 @@ import { CheckoutItems } from "../checkout/CheckoutSummary";
 import { formatToman } from "../../utils/price";
 import { formatDate, formatDateTime } from "../../utils/formatDate";
 import { parseApiError, toPersianDigits } from "../../utils/authHelpers";
+import { Link } from "react-router-dom";
 
 const ease = [0.22, 1, 0.36, 1];
 
@@ -17,14 +18,13 @@ const SummaryRow = ({ label, value, accent }) => (
 );
 
 const OrderRow = ({ order, open, onToggle, onPay, onCancel }) => {
-  const [busy, setBusy] = useState(null); // "pay" | "cancel" | null
+  const [busy, setBusy] = useState(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [error, setError] = useState("");
 
   const isPending = order.status === "pending_payment";
   const address = order.shippingAddress;
 
-  // اگه کاربر از صفحه درگاه با دکمه برگشت مرورگر برگرده، دکمه‌ها نباید قفل بمونن
   useEffect(() => {
     if (busy !== "pay") return;
     const onPageShow = (e) => e.persisted && setBusy(null);
@@ -36,7 +36,7 @@ const OrderRow = ({ order, open, onToggle, onPay, onCancel }) => {
     setError("");
     setBusy("pay");
     try {
-      await onPay(order._id); // در حالت موفق، کاربر به درگاه منتقل می‌شه
+      await onPay(order._id); 
     } catch (err) {
       setError(parseApiError(err).message);
       setBusy(null);

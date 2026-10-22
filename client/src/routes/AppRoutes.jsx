@@ -1,19 +1,22 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { lazy } from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import ProtectedRoute from "./ProtectedRoute";
-
 import HomePage from "../pages/shop/HomePage";
-import LoginPage from "../pages/shop/LoginPage";
-import RegisterPage from "../pages/shop/RegisterPage";
-import ProductListPage from "../pages/shop/ProductListPage";
-import ProductDetailPage from "../pages/shop/ProductDetailPage";
-import CartPage from "../pages/shop/CartPage";
-import CheckoutPage from "../pages/shop/CheckoutPage";
-import ProfilePage from "../pages/shop/ProfilePage";
-import CategoriesPage from "../pages/shop/CategoriesPage";
-import DiscountsPage from "../pages/shop/DiscountsPage";
-import ForgotPasswordPage from "../pages/shop/ForgotPasswordPage";
-import CheckoutResultPage from "../pages/shop/CheckoutResultPage";
+
+const LoginPage = lazy(() => import("../pages/shop/LoginPage"));
+const RegisterPage = lazy(() => import("../pages/shop/RegisterPage"));
+const ForgotPasswordPage = lazy(() => import("../pages/shop/ForgotPasswordPage"));
+const ProductListPage = lazy(() => import("../pages/shop/ProductListPage"));
+const ProductDetailPage = lazy(() => import("../pages/shop/ProductDetailPage"));
+const CartPage = lazy(() => import("../pages/shop/CartPage"));
+const CheckoutPage = lazy(() => import("../pages/shop/CheckoutPage"));
+const CheckoutResultPage = lazy(() => import("../pages/shop/CheckoutResultPage"));
+const CategoriesPage = lazy(() => import("../pages/shop/CategoriesPage"));
+const DiscountsPage = lazy(() => import("../pages/shop/DiscountsPage"));
+const ProfilePage = lazy(() => import("../pages/shop/ProfilePage"));
+const OrderDetailPage = lazy(() => import("../pages/shop/OrderDetailPage"));
+const NotFoundPage = lazy(() => import("../pages/shop/NotFoundPage"));
 
 const AppRoutes = () => {
   return (
@@ -33,11 +36,11 @@ const AppRoutes = () => {
         <Route element={<ProtectedRoute />}>
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/profile" element={<ProfilePage />} />
-          <Route
-            path="/my-orders"
-            element={<Navigate to="/profile?tab=orders" replace />}
-          />{" "}
+          <Route path="/orders/:id" element={<OrderDetailPage />} />
+          <Route path="/my-orders" element={<Navigate to="/profile?tab=orders" replace />} />
         </Route>
+
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );

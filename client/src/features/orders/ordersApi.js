@@ -8,3 +8,4 @@ export const getMyOrders = () => axiosInstance.get("/orders/my-orders");
 export const retryOrderPayment = (id) =>
   axiosInstance.post(`/orders/${id}/pay`);
 export const cancelOrder = (id) => axiosInstance.patch(`/orders/${id}/cancel`);
+export const getOrderById = (id) => axiosInstance.get(`/orders/${id}`);
