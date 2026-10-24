@@ -1,9 +1,10 @@
 import { z } from "zod";
+import { requiredMsg } from "../../Utils/zodMessages.js";
 
 const objectIdRegex = /^[0-9a-fA-F]{24}$/;
 
 const nameField = z
-  .string({ required_error: "نام دسته‌بندی الزامی است" })
+  .string(requiredMsg("نام دسته‌بندی"))
   .trim()
   .min(2, "نام دسته‌بندی باید حداقل ۲ کاراکتر باشد")
   .max(50, "نام دسته‌بندی نباید بیشتر از ۵۰ کاراکتر باشد");
@@ -13,11 +14,11 @@ const parentField = z
   .regex(objectIdRegex, "شناسه دسته‌بندی والد معتبر نیست")
   .optional()
   .nullable()
-  .or(z.literal("")); 
+  .or(z.literal(""));
 
-const isActiveField = z.enum(["true", "false"], {
-  errorMap: () => ({ message: "مقدار isActive باید true یا false باشد" }),
-}).optional();
+const isActiveField = z
+  .enum(["true", "false"], { error: "مقدار isActive باید true یا false باشد" })
+  .optional();
 
 export const createCategorySchema = z.object({
   name: nameField,

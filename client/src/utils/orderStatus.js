@@ -22,4 +22,5 @@ export const ORDER_STATUS = {
     label: "مرجوع شده",
     tone: "border-danger/40 bg-danger/10 text-danger",
   },
+  expired: { label: "منقضی شده", tone: "border-line bg-well text-muted" },
 };

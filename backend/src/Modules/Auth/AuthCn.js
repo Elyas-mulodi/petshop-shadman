@@ -7,10 +7,49 @@ import {
   generateAccessToken,
   generateRefreshToken,
   setRefreshTokenCookie,
+  clearRefreshTokenCookie,
 } from "../../Utils/generateToken.js";
 
 const OTP_EXPIRE_MINUTES = 2;
 const TEMP_TOKEN_EXPIRE = "5m";
+
+const MAX_OTP_ATTEMPTS = 5;
+
+const assertValidOtp = async (user, otp, res) => {
+  if (!user || !user.otpCode || !user.otpExpires) {
+    res.status(400);
+    throw new Error("درخواستی برای این شماره یافت نشد");
+  }
+
+  if (user.otpExpires < new Date()) {
+    res.status(400);
+    throw new Error("کد تایید منقضی شده است");
+  }
+
+  if (user.otpCode !== otp) {
+    user.otpAttempts = (user.otpAttempts || 0) + 1;
+    const exhausted = user.otpAttempts >= MAX_OTP_ATTEMPTS;
+
+    if (exhausted) {
+      user.otpCode = undefined;
+      user.otpExpires = undefined;
+      user.otpAttempts = 0;
+    }
+    await user.save({ validateBeforeSave: false });
+
+    res.status(400);
+    throw new Error(
+      exhausted
+        ? "تعداد تلاش‌ها زیاد بود، کد جدید دریافت کنید"
+        : "کد تایید نادرست است",
+    );
+  }
+
+  user.otpCode = undefined;
+  user.otpExpires = undefined;
+  user.otpAttempts = 0;
+  await user.save({ validateBeforeSave: false });
+};
 
 // ---------- ثبت‌نام: مرحله ۱ - ارسال OTP ----------
 export const sendRegisterOtp = asyncHandler(async (req, res) => {
@@ -32,6 +71,7 @@ export const sendRegisterOtp = asyncHandler(async (req, res) => {
 
   user.otpCode = otpCode;
   user.otpExpires = otpExpires;
+  user.otpAttempts = 0;
   await user.save({ validateBeforeSave: false });
 
   await sendSms(phone, `کد تایید پت شاپ شادمان: ${otpCode}`);
@@ -43,7 +83,9 @@ export const sendRegisterOtp = asyncHandler(async (req, res) => {
 export const verifyRegisterOtp = asyncHandler(async (req, res) => {
   const { phone, otp } = req.body;
 
-  const user = await User.findOne({ phone }).select("+otpCode +otpExpires");
+  const user = await User.findOne({ phone }).select(
+    "+otpCode +otpExpires +otpAttempts",
+  );
 
   if (!user || !user.otpCode) {
     res.status(400);
@@ -176,6 +218,11 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
     throw new Error("کاربر یافت نشد");
   }
 
+  if (user.isBlocked) {
+    res.status(403);
+    throw new Error("حساب کاربری شما مسدود شده است");
+  }
+
   const accessToken = generateAccessToken(user._id);
 
   res.status(200).json({ success: true, accessToken });
@@ -183,7 +230,7 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
 
 // ---------- خروج ----------
 export const logout = asyncHandler(async (req, res) => {
-  res.clearCookie("refreshToken");
+  clearRefreshTokenCookie(res);
   res.status(200).json({ success: true, message: "خروج با موفقیت انجام شد" });
 });
 
@@ -214,7 +261,9 @@ export const sendForgotPasswordOtp = asyncHandler(async (req, res) => {
 export const verifyForgotPasswordOtp = asyncHandler(async (req, res) => {
   const { phone, otp } = req.body;
 
-  const user = await User.findOne({ phone }).select("+otpCode +otpExpires");
+  const user = await User.findOne({ phone }).select(
+    "+otpCode +otpExpires +otpAttempts",
+  );
 
   if (!user || !user.otpCode) {
     res.status(400);
@@ -233,6 +282,7 @@ export const verifyForgotPasswordOtp = asyncHandler(async (req, res) => {
 
   user.otpCode = undefined;
   user.otpExpires = undefined;
+  user.otpAttempts = 0;
   await user.save({ validateBeforeSave: false });
 
   const resetToken = jwt.sign(

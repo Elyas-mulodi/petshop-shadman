@@ -12,7 +12,12 @@ import {
   removeProductImage,
   deleteProduct,
 } from "./ProductCn.js";
-import { createProductSchema, getProductsQuerySchema, updateProductSchema } from "./ProductValidation.js";
+import {
+  createProductSchema,
+  getProductsQuerySchema,
+  updateProductSchema,
+  removeProductImageSchema,
+} from "./ProductValidation.js";
 
 const router = express.Router();
 const upload = createUploader("products");
@@ -30,7 +35,7 @@ router.post(
   authorize("admin"),
   upload.array("images", 8),
   validate(createProductSchema),
-  createProduct
+  createProduct,
 );
 router.put(
   "/:id",
@@ -38,9 +43,16 @@ router.put(
   authorize("admin"),
   upload.array("images", 8),
   validate(updateProductSchema),
-  updateProduct
+  updateProduct,
 );
-router.patch("/:id/remove-image", protect, authorize("admin"), removeProductImage);
+router.patch(
+  "/:id/remove-image",
+  protect,
+  authorize("admin"),
+  validate(removeProductImageSchema),
+  removeProductImage,
+);
+
 router.delete("/:id", protect, authorize("admin"), deleteProduct);
 
 export default router;

@@ -1,5 +1,7 @@
 import asyncHandler from "express-async-handler";
 import User from "./UserMd.js";
+import escapeRegex from "../../Utils/escapeRegex.js";
+import { parsePagination } from "../../Utils/pagination.js";
 
 // ---------- دریافت پروفایل کاربر لاگین‌کرده ----------
 export const getProfile = asyncHandler(async (req, res) => {
@@ -73,36 +75,31 @@ export const changePassword = asyncHandler(async (req, res) => {
 
 // ---------- لیست/جستجوی کاربران (ادمین) ----------
 export const getAllUsers = asyncHandler(async (req, res) => {
-  const { search, page = 1, limit = 20 } = req.query;
+  const { search } = req.query;
+  const { page, limit, skip } = parsePagination(req.query, {
+    defaultLimit: 20,
+    maxLimit: 100,
+  });
 
   const filter = { role: "user" };
   if (search) {
-    filter.$or = [
-      { phone: { $regex: search, $options: "i" } },
-      { name: { $regex: search, $options: "i" } },
-      { email: { $regex: search, $options: "i" } },
-    ];
+    const rx = new RegExp(escapeRegex(search), "i");
+    filter.$or = [{ phone: rx }, { name: rx }, { email: rx }];
   }
-
-  const skip = (Number(page) - 1) * Number(limit);
 
   const [users, total] = await Promise.all([
     User.find(filter)
       .select("-otpCode -otpExpires")
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: -1, _id: -1 })
       .skip(skip)
-      .limit(Number(limit)),
+      .limit(limit),
     User.countDocuments(filter),
   ]);
 
   res.status(200).json({
     success: true,
     data: users,
-    pagination: {
-      total,
-      page: Number(page),
-      pages: Math.ceil(total / Number(limit)),
-    },
+    pagination: { total, page, pages: Math.ceil(total / limit) },
   });
 });
 

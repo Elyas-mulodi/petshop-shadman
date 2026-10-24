@@ -7,6 +7,11 @@ import Brand from "./Modules/Brand/BrandMd.js";
 import Product from "./Modules/Product/ProductMd.js";
 
 const run = async () => {
+  if (process.env.NODE_ENV === "production") {
+    console.error("❌ seed در production اجرا نمی‌شود");
+    process.exit(1);
+  }
+
   await mongoose.connect(process.env.MONGO_URI);
   console.log("✅ Connected to MongoDB");
 

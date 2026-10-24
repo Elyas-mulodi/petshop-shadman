@@ -3,15 +3,16 @@
 const validate =
   (schema, source = "body") =>
   (req, res, next) => {
-    const result = schema.safeParse(req[source]);
+    const result = schema.safeParse(req[source] ?? {});
 
     if (!result.success) {
       const errors = {};
 
-      result.error.errors.forEach((err) => {
-        const field = err.path.join(".") || "general";
+      // در Zod 4 به‌جای error.errors باید از error.issues استفاده کرد
+      result.error.issues.forEach((issue) => {
+        const field = issue.path.join(".") || "general";
         if (!errors[field]) {
-          errors[field] = err.message;
+          errors[field] = issue.message;
         }
       });
 
@@ -23,9 +24,9 @@ const validate =
     }
 
     if (source === "query") {
-      // توی Express 5 نمیشه مستقیم req.query رو بازنویسی کرد (فقط getter هست)
-      // پس به‌جاش فیلدهای validate‌شده رو روی همون object موجود merge می‌کنیم
-      Object.assign(req.query, result.data);
+      // توی Express 5، req.query فقط getter هست و هر بار از نو ساخته می‌شه،
+      // پس نتیجه‌ی ولیدیشن توی req.validatedQuery می‌مونه (کنترلرها همون req.query خام رو می‌خونن)
+      req.validatedQuery = result.data;
     } else {
       req[source] = result.data;
     }

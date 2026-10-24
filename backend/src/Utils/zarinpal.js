@@ -37,6 +37,7 @@ export const requestPayment = async ({ amountToman, description, mobile }) => {
         callback_url: `${process.env.SERVER_URL}/api/orders/verify`,
         description,
         metadata: mobile ? { mobile } : undefined,
+        signal: AbortSignal.timeout(10_000),
       }),
     });
     result = await response.json();
@@ -72,6 +73,7 @@ export const verifyPayment = async ({ authority, amountToman }) => {
         merchant_id: merchantId,
         amount: amountToman * 10,
         authority,
+        signal: AbortSignal.timeout(10_000),
       }),
     });
     result = await response.json();

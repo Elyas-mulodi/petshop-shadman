@@ -33,6 +33,15 @@ const shippingAddressSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const statusHistorySchema = new mongoose.Schema(
+  {
+    status: { type: String, required: true },
+    at: { type: Date, default: Date.now },
+    by: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  },
+  { _id: false },
+);
+
 const orderSchema = new mongoose.Schema(
   {
     orderNumber: { type: String, required: true, unique: true },
@@ -74,6 +83,7 @@ const orderSchema = new mongoose.Schema(
         "delivered",
         "cancelled",
         "returned",
+        "expired",
       ],
       default: "pending_payment",
     },
@@ -82,11 +92,12 @@ const orderSchema = new mongoose.Schema(
       authority: { type: String, default: null },
       refId: { type: String, default: null },
       paidAt: { type: Date, default: null },
+      verifyLockUntil: { type: Date, default: null }, // قفل کوتاه‌مدت موقع تایید پرداخت
     },
 
-    stockDeducted: { type: Boolean, default: false }, // برای جلوگیری از کسر تکراری موجودی
-
-    // مهلت نگه‌داری سفارش پرداخت‌نشده؛ با هر «پرداخت مجدد» تمدید می‌شه
+    stockDeducted: { type: Boolean, default: false },
+    stockIssue: { type: Boolean, default: false }, // پرداخت انجام شده ولی موجودی کافی نبود: نیاز به بررسی ادمین
+    statusHistory: { type: [statusHistorySchema], default: [] },
     expiresAt: {
       type: Date,
       default: () => new Date(Date.now() + ORDER_HOLD_MS),
@@ -104,6 +115,13 @@ orderSchema.index(
     partialFilterExpression: { status: "pending_payment" },
   },
 );
+
+orderSchema.index({ "payment.authority": 1 });
+orderSchema.index({ user: 1, createdAt: -1 });
+orderSchema.index({ status: 1, createdAt: -1 });
+orderSchema.index({ "payment.paidAt": 1 });
+orderSchema.index({ "items.product": 1 });
+orderSchema.index({ status: 1, expiresAt: 1 });
 
 const Order = mongoose.model("Order", orderSchema);
 export default Order;

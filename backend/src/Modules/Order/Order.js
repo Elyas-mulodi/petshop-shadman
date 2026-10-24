@@ -15,6 +15,7 @@ import {
 import {
   createOrderSchema,
   updateOrderStatusSchema,
+  getAdminOrdersQuerySchema,
 } from "./OrderValidation.js";
 
 const router = express.Router();
@@ -24,7 +25,14 @@ router.get("/verify", verifyOrderPayment);
 router.get("/shipping-config", getShippingConfig);
 
 // ---------- ادمین (قبل از مسیرهای /:id تا با آن‌ها قاطی نشن) ----------
-router.get("/admin/all", protect, authorize("admin"), getAllOrders);
+router.get(
+  "/admin/all",
+  protect,
+  authorize("admin"),
+  validate(getAdminOrdersQuerySchema, "query"),
+  getAllOrders,
+);
+
 router.patch(
   "/admin/:id/status",
   protect,

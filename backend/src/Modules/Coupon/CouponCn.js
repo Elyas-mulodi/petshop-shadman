@@ -32,7 +32,42 @@ export const updateCoupon = asyncHandler(async (req, res) => {
     throw new Error("کد تخفیف یافت نشد");
   }
 
-  Object.assign(coupon, req.body);
+  const {
+    code,
+    discountType,
+    discountValue,
+    maxDiscountAmount,
+    minCartAmount,
+    expiresAt,
+    isActive,
+  } = req.body;
+
+  if (code !== undefined && code.toUpperCase() !== coupon.code) {
+    const duplicate = await Coupon.exists({
+      code: code.toUpperCase(),
+      _id: { $ne: coupon._id },
+    });
+    if (duplicate) {
+      res.status(409);
+      throw new Error("این کد تخفیف قبلاً ساخته شده است");
+    }
+    coupon.code = code;
+  }
+
+  if (discountType !== undefined) coupon.discountType = discountType;
+  if (discountValue !== undefined) coupon.discountValue = discountValue;
+  if (maxDiscountAmount !== undefined)
+    coupon.maxDiscountAmount = maxDiscountAmount;
+  if (minCartAmount !== undefined) coupon.minCartAmount = minCartAmount;
+  if (expiresAt !== undefined) coupon.expiresAt = expiresAt;
+  if (isActive !== undefined) coupon.isActive = isActive;
+
+  // بررسی نهایی روی مقادیر ترکیب‌شده (مثلاً فقط نوع به درصد عوض شده ولی مقدار قبلی ثابت مونده)
+  if (coupon.discountType === "percentage" && coupon.discountValue > 100) {
+    res.status(400);
+    throw new Error("مقدار تخفیف درصدی نمی‌تواند بیشتر از ۱۰۰ باشد");
+  }
+
   await coupon.save();
 
   res.status(200).json({ success: true, data: coupon });
@@ -89,15 +124,24 @@ export const markCouponAsUsed = async (couponId, userId) => {
 
 // ---------- تابع مشترک اعتبارسنجی کد تخفیف (برای استفاده در route و OrderCn) ----------
 export const validateCouponForUser = async (code, userId, cartTotal) => {
-  const coupon = await Coupon.findOne({ code: code.toUpperCase(), isActive: true });
+  const coupon = await Coupon.findOne({
+    code: code.toUpperCase(),
+    isActive: true,
+  });
 
   if (!coupon) return { valid: false, message: "کد تخفیف نامعتبر است" };
   if (coupon.expiresAt && coupon.expiresAt < new Date())
     return { valid: false, message: "این کد تخفیف منقضی شده است" };
   if (coupon.usedBy.some((id) => String(id) === String(userId)))
-    return { valid: false, message: "شما قبلاً از این کد تخفیف استفاده کرده‌اید" };
+    return {
+      valid: false,
+      message: "شما قبلاً از این کد تخفیف استفاده کرده‌اید",
+    };
   if (cartTotal < coupon.minCartAmount)
-    return { valid: false, message: `حداقل مبلغ سبد برای این کد ${coupon.minCartAmount.toLocaleString()} تومان است` };
+    return {
+      valid: false,
+      message: `حداقل مبلغ سبد برای این کد ${coupon.minCartAmount.toLocaleString()} تومان است`,
+    };
 
   const discountAmount = coupon.calculateDiscount(cartTotal);
   return { valid: true, discountAmount, coupon };

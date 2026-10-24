@@ -6,7 +6,7 @@ const variantAttributeSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     value: { type: String, required: true, trim: true },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const variantSchema = new mongoose.Schema({
@@ -74,6 +74,10 @@ const productSchema = new mongoose.Schema(
         message: "محصول باید حداقل یک واریانت داشته باشد",
       },
     },
+    minPrice: {
+      type: Number,
+      default: 0,
+    },
     discountPercent: {
       type: Number,
       min: 0,
@@ -93,7 +97,7 @@ const productSchema = new mongoose.Schema(
       default: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // ساخت خودکار slug — باید قبل از validation اجرا بشه چون slug الزامیه
@@ -118,7 +122,10 @@ productSchema.pre("validate", async function () {
 productSchema.pre("save", async function () {
   this.variants.forEach((variant, index) => {
     if (!variant.sku) {
-      const randomPart = Math.random().toString(36).substring(2, 7).toUpperCase();
+      const randomPart = Math.random()
+        .toString(36)
+        .substring(2, 7)
+        .toUpperCase();
       variant.sku = `${this.slug || "PRD"}-${index + 1}-${randomPart}`;
     }
   });
@@ -138,6 +145,17 @@ productSchema.virtual("priceRange").get(function () {
 });
 
 productSchema.set("toJSON", { virtuals: true });
+
+productSchema.pre("validate", function () {
+  if (this.variants?.length) {
+    this.minPrice = Math.min(...this.variants.map((v) => v.price));
+  }
+});
+
+productSchema.index({ isActive: 1, createdAt: -1 });
+productSchema.index({ isActive: 1, minPrice: 1 });
+productSchema.index({ categories: 1 });
+productSchema.index({ brand: 1 });
 
 const Product = mongoose.model("Product", productSchema);
 export default Product;

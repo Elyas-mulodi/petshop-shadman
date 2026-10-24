@@ -66,8 +66,7 @@ const OrderDetailPage = () => {
       await navigator.clipboard.writeText(order.orderNumber);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
-    } catch {
-    }
+    } catch {}
   };
 
   if (loading) {
@@ -118,7 +117,7 @@ const OrderDetailPage = () => {
   }
 
   const isPending = order.status === "pending_payment";
-  const isClosed = order.status === "cancelled" || order.status === "returned";
+  const isClosed = ["cancelled", "returned", "expired"].includes(order.status);
   const address = order.shippingAddress;
   const discountLabel =
     order.discountSource === "coupon"
@@ -163,7 +162,9 @@ const OrderDetailPage = () => {
             <p className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
               {order.status === "returned"
                 ? "این سفارش مرجوع شده است."
-                : "این سفارش لغو شده است."}
+                : order.status === "expired"
+                  ? "مهلت پرداخت این سفارش تمام شده است."
+                  : "این سفارش لغو شده است."}
             </p>
           ) : (
             <OrderTimeline order={order} />

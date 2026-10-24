@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "seed": "node src/seed.js"
+    "seed": "node src/seed.js",
+    "migrate:indexes": "node src/migrations/syncUserIndexes.js",
+    "migrate:products": "node src/migrations/backfillProductMinPrice.js",
+    "migrate:orders": "node src/migrations/syncOrderIndexes.js"
   },
   "keywords": [],
   "author": "",

@@ -22,9 +22,6 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
       lowercase: true,
-      default: null,
-      sparse: true,
-      unique: true,
     },
     role: {
       type: String,
@@ -47,6 +44,11 @@ const userSchema = new mongoose.Schema(
       type: Date,
       select: false,
     },
+    otpAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
     pendingLoyaltyDiscount: {
       percent: { type: Number, default: 0 },
       expiresAt: { type: Date, default: null },
@@ -65,6 +67,11 @@ userSchema.pre("save", async function () {
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
+
+userSchema.index(
+  { email: 1 },
+  { unique: true, partialFilterExpression: { email: { $type: "string" } } },
+);
 
 const User = mongoose.model("User", userSchema);
 export default User;

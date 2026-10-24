@@ -1,82 +1,134 @@
 import { z } from "zod";
 
 const objectIdRegex = /^[0-9a-fA-F]{24}$/;
-const objectId = z.string().regex(objectIdRegex, "شناسه معتبر نیست");
+
+// پیام فارسی برای «الزامی» و «نوع اشتباه»
+const requiredMsg = (label) => ({
+  error: (issue) =>
+    issue.input === undefined ? `${label} الزامی است` : `${label} معتبر نیست`,
+});
+
+const objectId = (label = "شناسه") =>
+  z.string(requiredMsg(label)).regex(objectIdRegex, `${label} معتبر نیست`);
 
 const variantAttributeSchema = z.object({
-  name: z.string().trim().min(1, "نام ویژگی الزامی است"),
-  value: z.string().trim().min(1, "مقدار ویژگی الزامی است"),
+  name: z
+    .string(requiredMsg("نام ویژگی"))
+    .trim()
+    .min(1, "نام ویژگی الزامی است")
+    .max(40, "نام ویژگی خیلی طولانی است"),
+  value: z
+    .string(requiredMsg("مقدار ویژگی"))
+    .trim()
+    .min(1, "مقدار ویژگی الزامی است")
+    .max(80, "مقدار ویژگی خیلی طولانی است"),
 });
 
 const variantSchema = z.object({
+  _id: objectId("شناسه واریانت").optional(), // فقط برای ویرایشِ واریانتِ موجود
   attributes: z
-    .array(variantAttributeSchema)
-    .min(1, "هر واریانت باید حداقل یک ویژگی داشته باشد"),
+    .array(variantAttributeSchema, requiredMsg("ویژگی‌های واریانت"))
+    .min(1, "هر واریانت باید حداقل یک ویژگی داشته باشد")
+    .max(10, "حداکثر ۱۰ ویژگی برای هر واریانت مجاز است"),
   price: z
-    .number({ invalid_type_error: "قیمت باید عدد باشد" })
-    .min(0, "قیمت نمی‌تواند منفی باشد"),
+    .number(requiredMsg("قیمت"))
+    .int("قیمت باید عدد صحیح باشد")
+    .min(0, "قیمت نمی‌تواند منفی باشد")
+    .max(1_000_000_000, "قیمت بیش از حد مجاز است"),
   stock: z
-    .number({ invalid_type_error: "موجودی باید عدد باشد" })
-    .min(0, "موجودی نمی‌تواند منفی باشد"),
+    .number(requiredMsg("موجودی"))
+    .int("موجودی باید عدد صحیح باشد")
+    .min(0, "موجودی نمی‌تواند منفی باشد")
+    .max(1_000_000, "موجودی بیش از حد مجاز است"),
+  sku: z
+    .string()
+    .trim()
+    .max(60, "SKU خیلی طولانی است")
+    .optional()
+    .transform((value) => value || undefined), // رشته‌ی خالی نباید با unique ایندکس به مشکل بخوره
 });
 
-const jsonArrayField = (schema, fieldLabel) =>
-  z
-    .string({ required_error: `${fieldLabel} الزامی است` })
-    .transform((val, ctx) => {
+// فیلدهای multipart به‌صورت رشته‌ی JSON میان
+const jsonArray = (itemSchema, label) =>
+  z.preprocess(
+    (value) => {
+      if (typeof value !== "string") return value;
       try {
-        const parsed = JSON.parse(val);
-        const result = z
-          .array(schema)
-          .min(1, `حداقل یک مورد برای ${fieldLabel} لازم است`)
-          .safeParse(parsed);
-        if (!result.success) {
-          result.error.errors.forEach((e) => ctx.addIssue(e));
-          return z.NEVER;
-        }
-        return result.data;
+        return JSON.parse(value);
       } catch {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `فرمت ${fieldLabel} معتبر نیست`,
-        });
-        return z.NEVER;
+        return null;
       }
-    });
+    },
+    z
+      .array(itemSchema, {
+        error: (issue) =>
+          issue.input === undefined
+            ? `${label} الزامی است`
+            : `فرمت ${label} معتبر نیست`,
+      })
+      .min(1, `حداقل یک مورد برای ${label} لازم است`),
+  );
 
-const numericStringField = (label, opts = {}) =>
+const discountPercentField = z.preprocess(
+  (value) => {
+    if (value === undefined || value === null || value === "") return 0;
+    return typeof value === "string" ? Number(value) : value;
+  },
   z
-    .string()
-    .optional()
-    .transform((val, ctx) => {
-      if (val === undefined || val === "") return opts.default ?? undefined;
-      const num = Number(val);
-      if (Number.isNaN(num)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `${label} باید عدد باشد`,
-        });
-        return z.NEVER;
-      }
-      return num;
-    });
+    .number({ error: "درصد تخفیف باید عدد باشد" })
+    .min(0, "درصد تخفیف نمی‌تواند منفی باشد")
+    .max(100, "درصد تخفیف نمی‌تواند بیشتر از ۱۰۰ باشد"),
+);
 
-export const createProductSchema = z.object({
+const dateField = z
+  .preprocess(
+    (value) => (value === "" ? null : value),
+    z
+      .string()
+      .refine((s) => !Number.isNaN(Date.parse(s)), "تاریخ معتبر نیست")
+      .nullable(),
+  )
+  .optional();
+
+const productBase = z.object({
   name: z
-    .string({ required_error: "نام محصول الزامی است" })
+    .string(requiredMsg("نام محصول"))
     .trim()
-    .min(2, "نام محصول باید حداقل ۲ کاراکتر باشد"),
+    .min(2, "نام محصول باید حداقل ۲ کاراکتر باشد")
+    .max(150, "نام محصول خیلی طولانی است"),
   description: z
-    .string({ required_error: "توضیحات محصول الزامی است" })
+    .string(requiredMsg("توضیحات محصول"))
     .trim()
-    .min(10, "توضیحات باید حداقل ۱۰ کاراکتر باشد"),
-  brand: objectId,
-  categories: jsonArrayField(objectId, "دسته‌بندی‌ها"),
-  variants: jsonArrayField(variantSchema, "واریانت‌ها"),
-  discountPercent: numericStringField("درصد تخفیف", { default: 0 }),
-  discountStartDate: z.string().optional().nullable(),
-  discountEndDate: z.string().optional().nullable(),
-  isActive: z.enum(["true", "false"]).optional(),
+    .min(10, "توضیحات باید حداقل ۱۰ کاراکتر باشد")
+    .max(5000, "توضیحات خیلی طولانی است"),
+  brand: objectId("برند"),
+  categories: jsonArray(objectId("شناسه دسته‌بندی"), "دسته‌بندی‌ها"),
+  variants: jsonArray(variantSchema, "واریانت‌ها"),
+  discountPercent: discountPercentField,
+  discountStartDate: dateField,
+  discountEndDate: dateField,
+  isActive: z.union([z.boolean(), z.enum(["true", "false"])]).optional(),
+});
+
+const withDateCheck = (schema) =>
+  schema.refine(
+    (d) =>
+      !(d.discountStartDate && d.discountEndDate) ||
+      new Date(d.discountEndDate) >= new Date(d.discountStartDate),
+    {
+      message: "تاریخ پایان تخفیف نمی‌تواند قبل از تاریخ شروع باشد",
+      path: ["discountEndDate"],
+    },
+  );
+
+export const createProductSchema = withDateCheck(productBase);
+export const updateProductSchema = withDateCheck(productBase.partial());
+
+export const removeProductImageSchema = z.object({
+  imageUrl: z
+    .string(requiredMsg("آدرس عکس"))
+    .trim()
+    .min(1, "آدرس عکس الزامی است"),
 });
 
 export const getProductsQuerySchema = z.object({
@@ -94,5 +146,3 @@ export const getProductsQuerySchema = z.object({
   page: z.string().regex(/^\d+$/).optional(),
   limit: z.string().regex(/^\d+$/).optional(),
 });
-
-export const updateProductSchema = createProductSchema.partial();

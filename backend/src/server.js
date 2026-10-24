@@ -1,6 +1,7 @@
 import "dotenv/config";
 import app from "./app.js";
 import connectDB from "./Config/db.js";
+import { startOrderExpiryJob } from "./Utils/expireOrders.js";
 
 const PORT = process.env.PORT || 5000;
 
@@ -11,6 +12,7 @@ process.on("unhandledRejection", (err) => {
 
 const startServer = async () => {
   await connectDB();
+  startOrderExpiryJob();
 
   app.listen(PORT, () => {
     console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);

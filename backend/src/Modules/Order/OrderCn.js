@@ -18,6 +18,18 @@ import {
 } from "../../Utils/orderSmsTemplates.js";
 import Order, { ORDER_HOLD_MS } from "./OrderMd.js";
 
+import escapeRegex from "../../Utils/escapeRegex.js";
+import { parsePagination } from "../../Utils/pagination.js";
+import { buildDateFilter } from "../../Utils/dateRange.js";
+
+const historyEntry = (status, by = null) => ({ status, at: new Date(), by });
+const PAYABLE_STATUSES = ["pending_payment", "expired"];
+const LOCK_MS = 60 * 1000;
+const lockIsFree = (now) => [
+  { "payment.verifyLockUntil": null },
+  { "payment.verifyLockUntil": { $lt: now } },
+];
+
 const getShippingCost = (subtotal) => {
   const flatCost = Number(process.env.SHIPPING_COST || 0);
   const freeThreshold = Number(process.env.FREE_SHIPPING_THRESHOLD || 0);
@@ -92,6 +104,21 @@ export const createOrder = asyncHandler(async (req, res) => {
   const shippingCost = getShippingCost(subtotal);
   const totalAmount = subtotal - discountAmount + shippingCost;
 
+  // تخفیف (کد یا وفاداری) نباید هم‌زمان روی دو سفارش پرداخت‌نشده بنشینه
+  if (discountSource) {
+    const stale = {
+      user: req.user._id,
+      status: "pending_payment",
+      discountSource,
+    };
+    if (discountSource === "coupon") stale.couponId = appliedCoupon._id;
+
+    await Order.updateMany(stale, {
+      $set: { status: "cancelled" },
+      $push: { statusHistory: historyEntry("cancelled") },
+    });
+  }
+
   const order = await Order.create({
     orderNumber: generateOrderNumber(),
     user: req.user._id,
@@ -113,6 +140,7 @@ export const createOrder = asyncHandler(async (req, res) => {
     couponCode: appliedCoupon ? appliedCoupon.code : null,
     couponId: appliedCoupon ? appliedCoupon._id : null,
     totalAmount,
+    statusHistory: [historyEntry("pending_payment")],
   });
 
   // ---------- شروع پرداخت با زرین‌پال ----------
@@ -123,6 +151,11 @@ export const createOrder = asyncHandler(async (req, res) => {
   });
 
   if (!payment.success) {
+    // سفارشی که درگاهش ساخته نشد نباید معلق بمونه
+    order.status = "cancelled";
+    order.statusHistory.push(historyEntry("cancelled"));
+    await order.save();
+
     res.status(502);
     throw new Error(payment.error);
   }
@@ -138,14 +171,17 @@ export const createOrder = asyncHandler(async (req, res) => {
       paymentUrl: payment.paymentUrl,
     },
   });
-});
+}); // پایان تابع createOrder
 
 // ---------- بازگشت از درگاه و تایید پرداخت ----------
-// نکته: مرورگر کاربر مستقیماً به این آدرس ریدایرکت می‌شه (بدون نیاز به لاگین)
 export const verifyOrderPayment = asyncHandler(async (req, res) => {
   const { Authority, Status } = req.query;
   const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
   const resultUrl = `${clientUrl}/checkout/result`;
+
+  if (!Authority || typeof Authority !== "string") {
+    return res.redirect(`${resultUrl}?status=not-found`);
+  }
 
   const order = await Order.findOne({ "payment.authority": Authority });
 
@@ -153,91 +189,142 @@ export const verifyOrderPayment = asyncHandler(async (req, res) => {
     return res.redirect(`${resultUrl}?status=not-found`);
   }
 
-  if (order.status !== "pending_payment") {
-    // قبلاً پردازش شده (مثلاً کاربر رفرش کرده)
-    return res.redirect(
-      `${resultUrl}?status=already-processed&order=${order.orderNumber}`,
-    );
+  const orderQuery = `order=${order.orderNumber}`;
+
+  if (!PAYABLE_STATUSES.includes(order.status)) {
+    return res.redirect(`${resultUrl}?status=already-processed&${orderQuery}`);
   }
 
   if (Status !== "OK") {
-    return res.redirect(
-      `${resultUrl}?status=failed&order=${order.orderNumber}`,
-    );
+    return res.redirect(`${resultUrl}?status=failed&${orderQuery}`);
+  }
+
+  // ---------- قفل: فقط یک درخواست هم‌زمان اجازه‌ی تایید پرداخت داره ----------
+  const now = new Date();
+  const locked = await Order.findOneAndUpdate(
+    { _id: order._id, status: "pending_payment", $or: lockIsFree(now) },
+    { $set: { "payment.verifyLockUntil": new Date(now.getTime() + LOCK_MS) } },
+    { new: true },
+  );
+
+  if (!locked) {
+    return res.redirect(`${resultUrl}?status=already-processed&${orderQuery}`);
   }
 
   const verifyResult = await verifyPayment({
     authority: Authority,
-    amountToman: order.totalAmount,
+    amountToman: locked.totalAmount,
   });
 
   if (!verifyResult.success) {
-    return res.redirect(
-      `${resultUrl}?status=failed&order=${order.orderNumber}`,
+    await Order.updateOne(
+      { _id: locked._id },
+      { $set: { "payment.verifyLockUntil": null } },
     );
+    return res.redirect(`${resultUrl}?status=failed&${orderQuery}`);
   }
 
-  // ---------- پرداخت موفق: ثبت پرداخت و کسر موجودی ----------
-  order.status = "paid";
-  order.payment.refId = verifyResult.refId;
-  order.payment.paidAt = new Date();
+  // ---------- انتقال اتمیک به paid ----------
+  const paid = await Order.findOneAndUpdate(
+    { _id: order._id, status: { $in: PAYABLE_STATUSES }, $or: lockIsFree(now) },
+    {
+      $set: {
+        status: "paid",
+        "payment.refId": verifyResult.refId,
+        "payment.paidAt": new Date(),
+        "payment.verifyLockUntil": null,
+      },
+      $push: { statusHistory: historyEntry("paid") },
+    },
+    { new: true },
+  );
 
-  if (!order.stockDeducted) {
-    for (const item of order.items) {
-      await Product.updateOne(
-        { _id: item.product, "variants._id": item.variantId },
-        { $inc: { "variants.$.stock": -item.quantity } },
-      );
+  if (!paid) {
+    console.error(
+      `⚠️ Payment verified but order not pending: ${locked.orderNumber} (refId ${verifyResult.refId})`,
+    );
+    return res.redirect(`${resultUrl}?status=already-processed&${orderQuery}`);
+  }
+
+  // ---------- کسر موجودی: اگه کم بیاد منفی می‌شه و سفارش پرچم می‌خوره ----------
+  let oversold = false;
+
+  for (const item of paid.items) {
+    const updated = await Product.findOneAndUpdate(
+      { _id: locked._id, status: { $in: PAYABLE_STATUSES } },
+      { $inc: { "variants.$.stock": -item.quantity } },
+      { new: true },
+    );
+    const variant = updated?.variants.id(item.variantId);
+    if (!variant || variant.stock < 0) oversold = true;
+  }
+
+  await Order.updateOne(
+    { _id: paid._id },
+    { $set: { stockDeducted: true, stockIssue: oversold } },
+  );
+
+  if (oversold) {
+    console.error(`⚠️ Oversold items in order ${paid.orderNumber}`);
+  }
+
+  // ---------- کارهای بعد از پرداخت: خطای هر کدوم، پرداخت موفق رو باطل نمی‌کنه ----------
+  const safe = async (label, task) => {
+    try {
+      await task();
+    } catch (err) {
+      console.error(`❌ ${label} failed for order ${paid.orderNumber}:`, err);
     }
-    order.stockDeducted = true;
-  }
+  };
 
-  await order.save();
+  const user = await User.findById(paid.user);
 
-  // ---------- کارهای بعد از پرداخت: اگه خطا بدن، پرداخت موفق باطل نمی‌شه ----------
-  try {
-    const user = await User.findById(order.user);
-
-    if (order.discountSource === "coupon" && order.couponId) {
-      await markCouponAsUsed(order.couponId, order.user);
-    } else if (order.discountSource === "loyalty") {
+  await safe("consume discount", async () => {
+    if (paid.discountSource === "coupon" && paid.couponId) {
+      await markCouponAsUsed(paid.couponId, paid.user);
+    } else if (paid.discountSource === "loyalty" && user) {
       user.pendingLoyaltyDiscount = { percent: 0, expiresAt: null };
       await user.save();
     }
+  });
 
-    // اعطای تخفیف پلکانی بعدی بر اساس مبلغ همین سفارش
-    await grantLoyaltyDiscount(user, order.subtotal);
+  await safe("grant loyalty", async () => {
+    if (user) await grantLoyaltyDiscount(user, paid.subtotal);
+  });
 
-    // خالی کردن سبد خرید
-    await Cart.updateOne({ user: order.user }, { items: [] });
+  await safe("clear cart", () =>
+    Cart.updateOne(
+      { user: paid.user },
+      {
+        $pull: {
+          items: { variantId: { $in: paid.items.map((i) => i.variantId) } },
+        },
+      },
+    ),
+  );
 
-    // پیامک تایید سفارش (بدون await؛ خطای پیامک نباید چیزی رو خراب کنه)
+  if (user) {
     sendSms(
       user.phone,
-      orderConfirmedSms(order.orderNumber, order.totalAmount),
+      orderConfirmedSms(paid.orderNumber, paid.totalAmount),
     ).catch((err) =>
       console.error("خطا در ارسال پیامک تایید سفارش:", err.message),
     );
-  } catch (err) {
-    console.error(
-      `❌ Post-payment tasks failed for order ${order.orderNumber}:`,
-      err,
-    );
   }
 
-  return res.redirect(`${resultUrl}?status=success&order=${order.orderNumber}`);
+  return res.redirect(`${resultUrl}?status=success&${orderQuery}`);
 });
 
 // ---------- سفارش‌های کاربر ----------
 export const getMyOrders = asyncHandler(async (req, res) => {
   const orders = await Order.find({
     user: req.user._id,
-    // سفارش پرداخت‌نشده‌ای که مهلتش تموم شده و هنوز توسط TTL پاک نشده، نمایش داده نمی‌شه
+    status: { $ne: "expired" },
+    // سفارشی که مهلتش تموم شده ولی جاب هنوز منقضیش نکرده
     $nor: [{ status: "pending_payment", expiresAt: { $lt: new Date() } }],
   })
-    .select("-payment.authority")
+    .select("-payment.authority -payment.verifyLockUntil")
     .sort({ createdAt: -1 });
-
   res.status(200).json({ success: true, data: orders });
 });
 
@@ -314,6 +401,7 @@ export const retryOrderPayment = asyncHandler(async (req, res) => {
   }
 
   order.payment.authority = payment.authority;
+  order.payment.verifyLockUntil = null;
   order.expiresAt = new Date(Date.now() + ORDER_HOLD_MS);
   await order.save();
 
@@ -330,14 +418,24 @@ export const retryOrderPayment = asyncHandler(async (req, res) => {
 // ---------- لغو سفارش پرداخت‌نشده توسط خود کاربر ----------
 export const cancelMyOrder = asyncHandler(async (req, res) => {
   const order = await Order.findOneAndUpdate(
-    { _id: req.params.id, user: req.user._id, status: "pending_payment" },
-    { status: "cancelled" },
+    {
+      _id: req.params.id,
+      user: req.user._id,
+      status: "pending_payment",
+      $or: lockIsFree(new Date()),
+    },
+    {
+      $set: { status: "cancelled" },
+      $push: { statusHistory: historyEntry("cancelled", req.user._id) },
+    },
     { new: true },
   );
 
   if (!order) {
     res.status(404);
-    throw new Error("سفارش پیدا نشد یا دیگر قابل لغو نیست");
+    throw new Error(
+      "سفارش پیدا نشد، دیگر قابل لغو نیست یا پرداخت آن در حال بررسی است",
+    );
   }
 
   res
@@ -347,8 +445,9 @@ export const cancelMyOrder = asyncHandler(async (req, res) => {
 
 // ---------- جزئیات یک سفارش (کاربر فقط سفارش خودش، ادمین همه) ----------
 export const getOrderById = asyncHandler(async (req, res) => {
-  const order = await Order.findById(req.params.id);
-
+  const order = await Order.findById(req.params.id).select(
+    "-payment.authority -payment.verifyLockUntil",
+  );
   if (!order) {
     res.status(404);
     throw new Error("سفارش یافت نشد");
@@ -367,34 +466,59 @@ export const getOrderById = asyncHandler(async (req, res) => {
 
 // ---------- همه سفارش‌ها (ادمین) ----------
 export const getAllOrders = asyncHandler(async (req, res) => {
-  const { status, page = 1, limit = 20 } = req.query;
+  const { status, search, from, to, stockIssue } = req.query;
+  const { page, limit, skip } = parsePagination(req.query, {
+    defaultLimit: 20,
+    maxLimit: 100,
+  });
 
   const filter = {};
-  if (status) filter.status = status;
+  filter.status = status ? status : { $ne: "expired" };
+  if (stockIssue === "true") filter.stockIssue = true;
 
-  const skip = (Number(page) - 1) * Number(limit);
+  const dateRange = buildDateFilter(from, to);
+  if (dateRange) filter.createdAt = dateRange;
+
+  if (search) {
+    const rx = new RegExp(escapeRegex(search), "i");
+    const users = await User.find({ phone: rx }).select("_id").limit(50).lean();
+
+    filter.$or = [
+      { orderNumber: rx },
+      { "shippingAddress.phone": rx },
+      { "shippingAddress.fullName": rx },
+      { user: { $in: users.map((u) => u._id) } },
+    ];
+  }
 
   const [orders, total] = await Promise.all([
     Order.find(filter)
-      .populate("user", "phone")
-      .sort({ createdAt: -1 })
+      .select(
+        "orderNumber user status totalAmount discountAmount stockIssue createdAt payment.paidAt shippingAddress.fullName shippingAddress.phone items.productName items.quantity",
+      )
+      .populate("user", "phone name")
+      .sort({ createdAt: -1, _id: -1 })
       .skip(skip)
-      .limit(Number(limit)),
+      .limit(limit)
+      .lean(),
     Order.countDocuments(filter),
   ]);
 
   res.status(200).json({
     success: true,
     data: orders,
-    pagination: {
-      total,
-      page: Number(page),
-      pages: Math.ceil(total / Number(limit)),
-    },
+    pagination: { total, page, pages: Math.ceil(total / limit) },
   });
 });
 
 // ---------- تغییر وضعیت سفارش (فقط ادمین) ----------
+const ALLOWED_TRANSITIONS = {
+  paid: ["processing", "shipped", "cancelled"],
+  processing: ["shipped", "cancelled"],
+  shipped: ["delivered", "returned"],
+  delivered: ["returned"],
+};
+
 export const updateOrderStatus = asyncHandler(async (req, res) => {
   const { status } = req.body;
   const order = await Order.findById(req.params.id);
@@ -409,35 +533,61 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     throw new Error("سفارشی که هنوز پرداخت نشده قابل تغییر وضعیت نیست");
   }
 
-  // اگه سفارش لغو/مرجوع بشه و قبلاً موجودی کسر شده بود، برگردونیم به انبار
-  if (
-    (status === "cancelled" || status === "returned") &&
-    order.stockDeducted
-  ) {
-    for (const item of order.items) {
-      await Product.updateOne(
-        { _id: item.product, "variants._id": item.variantId },
-        { $inc: { "variants.$.stock": item.quantity } },
-      );
-    }
-    order.stockDeducted = false;
+  if (!(ALLOWED_TRANSITIONS[order.status] || []).includes(status)) {
+    res.status(400);
+    throw new Error("این تغییر وضعیت برای سفارش مجاز نیست");
   }
 
-  order.status = status;
-  await order.save();
+  // تغییر اتمیک: اگه ادمین دیگه‌ای هم‌زمان وضعیت رو عوض کرده باشه، این درخواست رد می‌شه
+  const updated = await Order.findOneAndUpdate(
+    { _id: order._id, status: order.status },
+    {
+      $set: { status },
+      $push: { statusHistory: historyEntry(status, req.user._id) },
+    },
+    { new: true },
+  );
 
-  // پیامک تغییر وضعیت (بدون await؛ خطای پیامک نباید تغییر وضعیت رو خراب کنه)
-  const user = await User.findById(order.user);
+  if (!updated) {
+    res.status(409);
+    throw new Error("وضعیت سفارش هم‌زمان تغییر کرد، صفحه را تازه کنید");
+  }
+
+  const isReversal = status === "cancelled" || status === "returned";
+
+  // برگشت موجودی فقط یک‌بار (اگه همزمان دو درخواست بیاد، فقط یکی claim می‌کنه)
+  if (isReversal) {
+    const claimed = await Order.findOneAndUpdate(
+      { _id: order._id, stockDeducted: true },
+      { $set: { stockDeducted: false } },
+    );
+
+    if (claimed) {
+      for (const item of updated.items) {
+        await Product.updateOne(
+          { _id: item.product, "variants._id": item.variantId },
+          { $inc: { "variants.$.stock": item.quantity } },
+        );
+      }
+    }
+  }
+
+  // پیامک تغییر وضعیت (بدون await؛ خطای پیامک نباید چیزی رو خراب کنه)
+  const user = await User.findById(updated.user);
 
   if (user && status === "shipped") {
-    sendSms(user.phone, orderShippedSms(order.orderNumber)).catch((err) =>
+    sendSms(user.phone, orderShippedSms(updated.orderNumber)).catch((err) =>
       console.error("خطا در ارسال پیامک ارسال سفارش:", err.message),
     );
   } else if (user && status === "delivered") {
-    sendSms(user.phone, orderDeliveredSms(order.orderNumber)).catch((err) =>
+    sendSms(user.phone, orderDeliveredSms(updated.orderNumber)).catch((err) =>
       console.error("خطا در ارسال پیامک تحویل سفارش:", err.message),
     );
   }
 
-  res.status(200).json({ success: true, data: order });
+  res.status(200).json({
+    success: true,
+    data: updated,
+    refundRequired: isReversal && !!updated.payment?.refId,
+  });
 });

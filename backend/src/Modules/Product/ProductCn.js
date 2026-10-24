@@ -1,6 +1,14 @@
 import asyncHandler from "express-async-handler";
 import Product from "./ProductMd.js";
-import { getFileUrl } from "../../Utils/uploadService.js";
+import escapeRegex from "../../Utils/escapeRegex.js";
+import { parsePagination } from "../../Utils/pagination.js";
+import Order from "../Order/OrderMd.js";
+import { getFileUrl, deleteUploadedFile } from "../../Utils/uploadService.js";
+
+const MAX_IMAGES = 8;
+
+const parseBool = (value, fallback) =>
+  value === undefined ? fallback : String(value) === "true";
 
 // ---------- ساخت محصول (ادمین) ----------
 export const createProduct = asyncHandler(async (req, res) => {
@@ -25,12 +33,12 @@ export const createProduct = asyncHandler(async (req, res) => {
     description,
     brand,
     categories,
-    variants,
+    variants: variants.map(({ _id, ...rest }) => rest),
     images,
     discountPercent,
     discountStartDate: discountStartDate || null,
     discountEndDate: discountEndDate || null,
-    isActive: isActive === undefined ? true : isActive === "true",
+    isActive: parseBool(isActive, true),
   });
 
   res.status(201).json({ success: true, data: product });
@@ -38,31 +46,32 @@ export const createProduct = asyncHandler(async (req, res) => {
 
 // ---------- لیست محصولات با فیلتر/صفحه‌بندی (عمومی) ----------
 export const getProducts = asyncHandler(async (req, res) => {
-  const {
-    category,
-    brand,
-    page = 1,
-    limit = 12,
-    search,
-    sort,
-    minPrice,
-    maxPrice,
-    inStock,
-    attrs,
-  } = req.query;
+  const { category, brand, search, sort, minPrice, maxPrice, inStock, attrs } =
+    req.query;
+  const { page, limit, skip } = parsePagination(req.query, {
+    defaultLimit: 12,
+    maxLimit: 60,
+  });
 
   const filter = { isActive: true };
-  if (category) filter.categories = { $in: category.split(",") };
+  if (category) filter.categories = { $in: String(category).split(",") };
   if (brand) filter.brand = brand;
-  if (search) filter.name = { $regex: search, $options: "i" };
+  if (search) filter.name = { $regex: escapeRegex(search), $options: "i" };
 
-  // ---------- ساخت شرط روی حداقل یک واریانت (قیمت، موجودی، ویژگی‌ها) ----------
+  // ---------- شرط روی حداقل یک واریانت (قیمت، موجودی، ویژگی‌ها) ----------
   const variantElemMatch = {};
 
-  if (minPrice || maxPrice) {
+  const min = Number(minPrice);
+  const max = Number(maxPrice);
+  const hasMin =
+    minPrice !== undefined && minPrice !== "" && Number.isFinite(min);
+  const hasMax =
+    maxPrice !== undefined && maxPrice !== "" && Number.isFinite(max);
+
+  if (hasMin || hasMax) {
     variantElemMatch.price = {};
-    if (minPrice) variantElemMatch.price.$gte = Number(minPrice);
-    if (maxPrice) variantElemMatch.price.$lte = Number(maxPrice);
+    if (hasMin) variantElemMatch.price.$gte = min;
+    if (hasMax) variantElemMatch.price.$lte = max;
   }
 
   if (inStock === "true") {
@@ -70,6 +79,11 @@ export const getProducts = asyncHandler(async (req, res) => {
   }
 
   if (attrs) {
+    if (String(attrs).length > 2000) {
+      res.status(400);
+      throw new Error("فیلتر ویژگی‌ها بیش از حد طولانی است");
+    }
+
     let parsedAttrs = [];
     try {
       parsedAttrs = JSON.parse(attrs);
@@ -78,13 +92,18 @@ export const getProducts = asyncHandler(async (req, res) => {
       throw new Error("فرمت فیلتر ویژگی‌ها (attrs) معتبر نیست");
     }
 
-    if (Array.isArray(parsedAttrs) && parsedAttrs.length > 0) {
-      // هر واریانتی که هم‌زمان همه‌ی ویژگی‌های درخواستی رو داشته باشه (مثلا هم وزن=3کیلو هم طعم=مرغ)
-      variantElemMatch.attributes = {
-        $all: parsedAttrs.map((a) => ({
-          $elemMatch: { name: a.name, value: a.value },
-        })),
-      };
+    if (Array.isArray(parsedAttrs)) {
+      const valid = parsedAttrs.filter(
+        (a) => a && typeof a.name === "string" && typeof a.value === "string",
+      );
+      if (valid.length > 0) {
+        // واریانتی که هم‌زمان همه‌ی ویژگی‌های درخواستی رو داشته باشه
+        variantElemMatch.attributes = {
+          $all: valid.map((a) => ({
+            $elemMatch: { name: a.name, value: a.value },
+          })),
+        };
+      }
     }
   }
 
@@ -93,31 +112,25 @@ export const getProducts = asyncHandler(async (req, res) => {
   }
 
   const sortOptions = {
-    newest: { createdAt: -1 },
-    priceAsc: { "variants.0.price": 1 },
-    priceDesc: { "variants.0.price": -1 },
+    newest: { createdAt: -1, _id: -1 },
+    priceAsc: { "variants.0.price": 1, _id: 1 },
+    priceDesc: { "variants.0.price": -1, _id: 1 },
   };
-
-  const skip = (Number(page) - 1) * Number(limit);
 
   const [products, total] = await Promise.all([
     Product.find(filter)
       .populate("brand", "name logo")
       .populate("categories", "name slug")
-      .sort(sortOptions[sort] || { createdAt: -1 })
+      .sort(sortOptions[sort] || sortOptions.newest)
       .skip(skip)
-      .limit(Number(limit)),
+      .limit(limit),
     Product.countDocuments(filter),
   ]);
 
   res.status(200).json({
     success: true,
     data: products,
-    pagination: {
-      total,
-      page: Number(page),
-      pages: Math.ceil(total / Number(limit)),
-    },
+    pagination: { total, page, pages: Math.ceil(total / limit) },
   });
 });
 
@@ -184,29 +197,71 @@ export const updateProduct = asyncHandler(async (req, res) => {
     throw new Error("محصول یافت نشد");
   }
 
-  const fields = [
-    "name",
-    "description",
-    "brand",
-    "categories",
-    "variants",
-    "discountPercent",
-    "discountStartDate",
-    "discountEndDate",
-  ];
+  const {
+    name,
+    description,
+    brand,
+    categories,
+    variants,
+    discountPercent,
+    discountStartDate,
+    discountEndDate,
+    isActive,
+  } = req.body;
 
-  fields.forEach((field) => {
-    if (req.body[field] !== undefined) product[field] = req.body[field];
-  });
+  if (name !== undefined) product.name = name;
+  if (description !== undefined) product.description = description;
+  if (brand !== undefined) product.brand = brand;
+  if (categories !== undefined) product.categories = categories;
+  if (discountPercent !== undefined) product.discountPercent = discountPercent;
+  if (discountStartDate !== undefined)
+    product.discountStartDate = discountStartDate || null;
+  if (discountEndDate !== undefined)
+    product.discountEndDate = discountEndDate || null;
+  if (isActive !== undefined) product.isActive = parseBool(isActive);
 
-  if (req.body.isActive !== undefined)
-    product.isActive = req.body.isActive === "true";
+  if (variants !== undefined) {
+    const existingById = new Map(
+      product.variants.map((v) => [String(v._id), v]),
+    );
+    const seen = new Set();
+    const merged = [];
+
+    for (const incoming of variants) {
+      if (!incoming._id) {
+        merged.push(incoming); // واریانت جدید
+        continue;
+      }
+
+      const current = existingById.get(incoming._id);
+      if (!current || seen.has(incoming._id)) {
+        res.status(400);
+        throw new Error("واریانت‌های ارسالی معتبر نیستند");
+      }
+      seen.add(incoming._id);
+
+      // واریانت موجود: _id حفظ می‌شه تا سبد خرید و سفارش‌ها نشکنن
+      current.attributes = incoming.attributes;
+      current.price = incoming.price;
+      current.stock = incoming.stock;
+      if (incoming.sku) current.sku = incoming.sku;
+      merged.push(current);
+    }
+
+    product.variants = merged;
+  }
 
   if (req.files && req.files.length > 0) {
-    const newImages = req.files.map((file) =>
+    const added = req.files.map((file) =>
       getFileUrl("products", file.filename),
     );
-    product.images = [...product.images, ...newImages];
+
+    if (product.images.length + added.length > MAX_IMAGES) {
+      res.status(400);
+      throw new Error(`حداکثر ${MAX_IMAGES} عکس برای هر محصول مجاز است`);
+    }
+
+    product.images = [...product.images, ...added];
   }
 
   await product.save();
@@ -214,7 +269,6 @@ export const updateProduct = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: product });
 });
 
-// ---------- حذف یک عکس مشخص از محصول (ادمین) ----------
 export const removeProductImage = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id);
 
@@ -223,13 +277,23 @@ export const removeProductImage = asyncHandler(async (req, res) => {
     throw new Error("محصول یافت نشد");
   }
 
-  product.images = product.images.filter((img) => img !== req.body.imageUrl);
+  const { imageUrl } = req.body;
+
+  if (!product.images.includes(imageUrl)) {
+    res.status(404);
+    throw new Error("این عکس متعلق به این محصول نیست");
+  }
+
+  product.images = product.images.filter((img) => img !== imageUrl);
   await product.save();
+
+  // اگه سفارشی همین عکس رو snapshot کرده، فایل روی دیسک می‌مونه
+  const usedInOrders = await Order.exists({ "items.image": imageUrl });
+  if (!usedInOrders) await deleteUploadedFile(imageUrl);
 
   res.status(200).json({ success: true, data: product });
 });
 
-// ---------- حذف محصول (ادمین) ----------
 export const deleteProduct = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id);
 
@@ -238,7 +302,16 @@ export const deleteProduct = asyncHandler(async (req, res) => {
     throw new Error("محصول یافت نشد");
   }
 
+  const usedInOrders = await Order.exists({ "items.product": product._id });
+  if (usedInOrders) {
+    res.status(409);
+    throw new Error(
+      "این محصول در سفارش‌ها استفاده شده و حذف نمی‌شود. به‌جای حذف، آن را غیرفعال کنید",
+    );
+  }
+
   await product.deleteOne();
+  await Promise.all(product.images.map((img) => deleteUploadedFile(img)));
 
   res.status(200).json({ success: true, message: "محصول حذف شد" });
 });
