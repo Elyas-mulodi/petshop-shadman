@@ -122,6 +122,8 @@ orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ "payment.paidAt": 1 });
 orderSchema.index({ "items.product": 1 });
 orderSchema.index({ status: 1, expiresAt: 1 });
+orderSchema.index({ status: 1, "payment.paidAt": 1 });
+orderSchema.index({ createdAt: -1 });
 
 const Order = mongoose.model("Order", orderSchema);
 export default Order;
