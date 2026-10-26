@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { X, Search, ChevronDown, User } from "lucide-react";
+import { X, Search, ChevronDown, User, LayoutDashboard } from "lucide-react";
 import Logo from "../common/Logo";
 import useCategoryTree from "../../features/categories/useCategoryTree";
 import { navLinks } from "../../utils/navLinks";
@@ -78,7 +78,11 @@ const MobileDrawer = ({ open, onClose, isAuthenticated, user }) => {
         >
           <div className="flex items-center justify-between border-b border-line p-5">
             <Logo />
-            <button onClick={onClose} aria-label="بستن منو" className="text-paper">
+            <button
+              onClick={onClose}
+              aria-label="بستن منو"
+              className="text-paper"
+            >
               <X className="h-6 w-6" />
             </button>
           </div>
@@ -100,7 +104,11 @@ const MobileDrawer = ({ open, onClose, isAuthenticated, user }) => {
             <motion.nav variants={list} initial="hidden" animate="show">
               {navLinks.map((link) =>
                 link.hasMenu ? (
-                  <motion.div key={link.to} variants={item} className="border-b border-line">
+                  <motion.div
+                    key={link.to}
+                    variants={item}
+                    className="border-b border-line"
+                  >
                     <div className="flex items-center justify-between">
                       <Link
                         to={link.to}
@@ -162,7 +170,11 @@ const MobileDrawer = ({ open, onClose, isAuthenticated, user }) => {
                     </AnimatePresence>
                   </motion.div>
                 ) : (
-                  <motion.div key={link.to} variants={item} className="border-b border-line">
+                  <motion.div
+                    key={link.to}
+                    variants={item}
+                    className="border-b border-line"
+                  >
                     <Link
                       to={link.to}
                       onClick={onClose}
@@ -171,12 +183,22 @@ const MobileDrawer = ({ open, onClose, isAuthenticated, user }) => {
                       {link.label}
                     </Link>
                   </motion.div>
-                )
+                ),
               )}
             </motion.nav>
           </div>
 
           <div className="border-t border-line p-5">
+            {isAuthenticated && user?.role === "admin" && (
+              <Link
+                to="/admin"
+                onClick={onClose}
+                className="mb-4 flex items-center gap-3 text-sm text-bronze"
+              >
+                <LayoutDashboard className="h-5 w-5" />
+                پنل مدیریت
+              </Link>
+            )}
             <Link
               to={isAuthenticated ? "/profile" : "/login"}
               onClick={onClose}
@@ -189,7 +211,7 @@ const MobileDrawer = ({ open, onClose, isAuthenticated, user }) => {
         </motion.aside>
       )}
     </AnimatePresence>,
-    document.body
+    document.body,
   );
 };
 

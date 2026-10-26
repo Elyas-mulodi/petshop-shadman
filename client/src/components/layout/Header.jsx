@@ -1,8 +1,13 @@
 import { useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
-import { AnimatePresence, motion, useScroll, useMotionValueEvent } from "motion/react";
-import { ShoppingBag, User, Menu, Search, ChevronDown } from "lucide-react";
+import {
+  AnimatePresence,
+  motion,
+  useScroll,
+  useMotionValueEvent,
+} from "motion/react";
+import { ShoppingBag, User, Menu, Search, ChevronDown, LayoutDashboard } from "lucide-react";
 import Logo from "../common/Logo";
 import MegaMenu from "./MegaMenu";
 import MobileDrawer from "./MobileDrawer";
@@ -56,7 +61,9 @@ const Header = () => {
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5, ease }}
       className={`sticky top-0 z-50 border-b transition-colors duration-300 ${
-        scrolled ? "border-line bg-ink/85 backdrop-blur-md" : "border-transparent bg-ink"
+        scrolled
+          ? "border-line bg-ink/85 backdrop-blur-md"
+          : "border-transparent bg-ink"
       }`}
     >
       <div
@@ -111,14 +118,19 @@ const Header = () => {
                   {underline}
                 </Link>
                 <AnimatePresence>
-                  {megaOpen && <MegaMenu onNavigate={() => setMegaOpen(false)} />}
+                  {megaOpen && (
+                    <MegaMenu onNavigate={() => setMegaOpen(false)} />
+                  )}
                 </AnimatePresence>
               </div>
             );
           })}
         </nav>
 
-        <form onSubmit={handleSearchSubmit} className="mx-auto hidden max-w-sm flex-1 lg:flex">
+        <form
+          onSubmit={handleSearchSubmit}
+          className="mx-auto hidden max-w-sm flex-1 lg:flex"
+        >
           <div className="relative w-full">
             <input
               type="text"
@@ -132,6 +144,15 @@ const Header = () => {
         </form>
 
         <div className="mr-auto flex items-center gap-5 lg:mr-0">
+          {isAuthenticated && user?.role === "admin" && (
+            <Link
+              to="/admin"
+              className="hidden items-center gap-1.5 text-sm text-bronze transition-opacity hover:opacity-80 md:flex"
+            >
+              <LayoutDashboard className="h-5 w-5" />
+              پنل مدیریت
+            </Link>
+          )}
           <Link
             to={isAuthenticated ? "/profile" : "/login"}
             className="hidden items-center gap-1.5 text-sm text-muted transition-colors hover:text-paper md:flex"
@@ -140,8 +161,16 @@ const Header = () => {
             {isAuthenticated ? user?.name || "حساب من" : "ورود"}
           </Link>
 
-          <Link to="/cart" className="relative flex items-center" aria-label="سبد خرید">
-            <motion.span whileHover={{ y: -2 }} whileTap={{ scale: 0.92 }} className="flex">
+          <Link
+            to="/cart"
+            className="relative flex items-center"
+            aria-label="سبد خرید"
+          >
+            <motion.span
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.92 }}
+              className="flex"
+            >
               <ShoppingBag className="h-6 w-6 text-paper" strokeWidth={1.6} />
             </motion.span>
             <AnimatePresence>

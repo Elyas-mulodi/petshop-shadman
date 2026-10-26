@@ -14,6 +14,7 @@
     "@hookform/resolvers": "^5.9.1",
     "@reduxjs/toolkit": "^2.12.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@tanstack/react-query": "^5.104.5",
     "axios": "^1.20.0",
     "lucide-react": "^1.48.0",
     "motion": "^13.4.4",
