@@ -142,3 +142,23 @@ export const bucketize = (daily, granularity, fields) => {
 
   return [...buckets.values()];
 };
+
+// ---------- تاریخ شمسی برای خروجی‌ها: 1405/08/05 و 1405/08/05 14:30 ----------
+const jalaliDateTime = new Intl.DateTimeFormat("en-US-u-ca-persian-nu-latn", {
+  timeZone: TEHRAN_TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+export const formatJalali = (value, withTime = false) => {
+  if (!value) return "";
+  const parts = Object.fromEntries(
+    jalaliDateTime.formatToParts(new Date(value)).map((p) => [p.type, p.value]),
+  );
+  const date = `${parts.year}/${parts.month}/${parts.day}`;
+  return withTime ? `${date} ${parts.hour}:${parts.minute}` : date;
+};

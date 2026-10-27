@@ -42,6 +42,12 @@ const statusHistorySchema = new mongoose.Schema(
   { _id: false },
 );
 
+const adminNoteSchema = new mongoose.Schema({
+  text: { type: String, required: true, trim: true, maxlength: 1000 },
+  by: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  at: { type: Date, default: Date.now },
+});
+
 const orderSchema = new mongoose.Schema(
   {
     orderNumber: { type: String, required: true, unique: true },
@@ -98,6 +104,24 @@ const orderSchema = new mongoose.Schema(
     stockDeducted: { type: Boolean, default: false },
     stockIssue: { type: Boolean, default: false }, // پرداخت انجام شده ولی موجودی کافی نبود: نیاز به بررسی ادمین
     statusHistory: { type: [statusHistorySchema], default: [] },
+    shipping: {
+      carrier: { type: String, trim: true, maxlength: 60, default: null },
+      trackingCode: { type: String, trim: true, maxlength: 60, default: null },
+      shippedAt: { type: Date, default: null },
+    },
+
+    refund: {
+      required: { type: Boolean, default: false },
+      doneAt: { type: Date, default: null },
+      doneBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+      },
+      note: { type: String, trim: true, maxlength: 300, default: null },
+    },
+
+    adminNotes: { type: [adminNoteSchema], default: [] },
     expiresAt: {
       type: Date,
       default: () => new Date(Date.now() + ORDER_HOLD_MS),
@@ -123,6 +147,7 @@ orderSchema.index({ "payment.paidAt": 1 });
 orderSchema.index({ "items.product": 1 });
 orderSchema.index({ status: 1, expiresAt: 1 });
 orderSchema.index({ status: 1, "payment.paidAt": 1 });
+orderSchema.index({ "refund.required": 1, "refund.doneAt": 1 });
 orderSchema.index({ createdAt: -1 });
 
 const Order = mongoose.model("Order", orderSchema);

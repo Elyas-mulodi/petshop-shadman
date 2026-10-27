@@ -6,7 +6,10 @@ import Badge from "../ui/Badge";
 import StatusBadge from "../../orders/StatusBadge";
 import ErrorState from "../../common/ErrorState";
 import { formatNumber } from "./chartTheme";
-import { useInventory, useRecentOrders } from "../../../features/admin/dashboard/useDashboard";
+import {
+  useInventory,
+  useRecentOrders,
+} from "../../../features/admin/dashboard/useDashboard";
 import { formatToman } from "../../../utils/price";
 import { formatDateTime } from "../../../utils/formatDate";
 
@@ -16,7 +19,12 @@ export const KpiGrid = ({ query }) => {
   const refunds = query.data?.refunds;
 
   if (query.isError && !query.data) {
-    return <ErrorState message="دریافت شاخص‌ها با خطا مواجه شد" onRetry={query.refetch} />;
+    return (
+      <ErrorState
+        message="دریافت شاخص‌ها با خطا مواجه شد"
+        onRetry={query.refetch}
+      />
+    );
   }
 
   const cards = [
@@ -25,7 +33,13 @@ export const KpiGrid = ({ query }) => {
     { key: "aov", label: "میانگین ارزش سفارش", metric: kpis?.aov, money: true },
     { key: "newUsers", label: "کاربران جدید", metric: kpis?.newUsers },
     { key: "itemsSold", label: "کالای فروخته‌شده", metric: kpis?.itemsSold },
-    { key: "discount", label: "مجموع تخفیف", metric: kpis?.discount, money: true, neutral: true },
+    {
+      key: "discount",
+      label: "مجموع تخفیف",
+      metric: kpis?.discount,
+      money: true,
+      neutral: true,
+    },
   ];
 
   return (
@@ -51,8 +65,9 @@ export const KpiGrid = ({ query }) => {
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
           <p className="leading-7 text-paper">
-            {formatNumber(refunds.count)} سفارش پرداخت‌شده در این بازه لغو یا مرجوع شده (مجموع {formatToman(refunds.amount)}).
-            عودت وجه این سفارش‌ها باید به‌صورت دستی از پنل درگاه انجام شود.
+            {formatNumber(refunds.count)} سفارش پرداخت‌شده در این بازه لغو یا
+            مرجوع شده (مجموع {formatToman(refunds.amount)}). عودت وجه این
+            سفارش‌ها باید به‌صورت دستی از پنل درگاه انجام شود.
           </p>
         </div>
       )}
@@ -71,7 +86,9 @@ const Tile = ({ label, value, tone }) => {
 
   return (
     <div className={`rounded-xl border px-4 py-3 ${style}`}>
-      <p className="font-display text-xl font-bold text-paper">{formatNumber(value)}</p>
+      <p className="font-display text-xl font-bold text-paper">
+        {formatNumber(value)}
+      </p>
       <p className="mt-0.5 text-xs text-muted">{label}</p>
     </div>
   );
@@ -93,8 +110,16 @@ export const LiveStrip = ({ query }) => {
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
       <Tile label="در انتظار پرداخت" value={live.pendingPayment} />
-      <Tile label="منتظر ارسال" value={live.awaitingShipment} tone="attention" />
-      <Tile label="سفارش با کمبود موجودی" value={live.stockIssue} tone="alert" />
+      <Tile
+        label="منتظر ارسال"
+        value={live.awaitingShipment}
+        tone="attention"
+      />
+      <Tile
+        label="سفارش با کمبود موجودی"
+        value={live.stockIssue}
+        tone="alert"
+      />
       <Tile label="کم‌موجودی" value={live.lowStock} tone="attention" />
       <Tile label="ناموجود" value={live.outOfStock} tone="alert" />
       <Tile label="کل کاربران" value={live.totalUsers} />
@@ -110,7 +135,11 @@ export const LowStockCard = () => {
   return (
     <Panel
       title="هشدار موجودی"
-      subtitle={d ? `واریانت‌های با موجودی ${formatNumber(d.threshold)} عدد یا کمتر` : undefined}
+      subtitle={
+        d
+          ? `واریانت‌های با موجودی ${formatNumber(d.threshold)} عدد یا کمتر`
+          : undefined
+      }
       query={query}
       isEmpty={!d || d.items.length === 0}
       emptyText="موجودی همه‌ی کالاها کافی است."
@@ -118,7 +147,10 @@ export const LowStockCard = () => {
     >
       <ul className="divide-y divide-line">
         {d?.items.map((item) => (
-          <li key={item.variantId} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+          <li
+            key={item.variantId}
+            className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+          >
             <div className="min-w-0">
               <p className="truncate text-sm text-paper">{item.name}</p>
               <p className="mt-0.5 truncate text-xs text-muted">
@@ -152,10 +184,19 @@ export const RecentOrdersCard = () => {
     >
       <ul className="divide-y divide-line">
         {orders.map((order) => (
-          <li key={order._id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+          <li
+            key={order._id}
+            className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+          >
             <div className="min-w-0">
               <p className="flex items-center gap-1.5 text-sm text-paper">
-                {/* TODO: بعد از ساخت صفحه‌ی سفارش‌های ادمین به همون صفحه لینک بشه */}
+                <Link
+                  to={`/admin/orders/${order._id}`}
+                  dir="ltr"
+                  className="transition-colors hover:text-bronze"
+                >
+                  {order.orderNumber}
+                </Link>{" "}
                 <Link
                   to={`/orders/${order._id}`}
                   target="_blank"
@@ -172,11 +213,14 @@ export const RecentOrdersCard = () => {
                 )}
               </p>
               <p className="mt-0.5 truncate text-xs text-muted">
-                {order.shippingAddress?.fullName || order.user?.phone} ، {formatDateTime(order.createdAt)}
+                {order.shippingAddress?.fullName || order.user?.phone} ،{" "}
+                {formatDateTime(order.createdAt)}
               </p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">
-              <span className="text-sm text-bronze">{formatToman(order.totalAmount)}</span>
+              <span className="text-sm text-bronze">
+                {formatToman(order.totalAmount)}
+              </span>
               <StatusBadge status={order.status} />
             </div>
           </li>

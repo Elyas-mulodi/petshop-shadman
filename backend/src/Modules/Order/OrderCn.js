@@ -20,8 +20,34 @@ import Order, { ORDER_HOLD_MS } from "./OrderMd.js";
 
 import escapeRegex from "../../Utils/escapeRegex.js";
 import { parsePagination } from "../../Utils/pagination.js";
-import { buildDateFilter } from "../../Utils/dateRange.js";
+import {
+  buildDateFilter,
+  formatJalali,
+  toTehranDay,
+} from "../../Utils/dateRange.js";
+import { csvRow } from "../../Utils/csv.js";
 
+const REVENUE_STATUSES = ["paid", "processing", "shipped", "delivered"];
+
+const STATUS_LABELS = {
+  pending_payment: "در انتظار پرداخت",
+  paid: "پرداخت‌شده",
+  processing: "در حال آماده‌سازی",
+  shipped: "ارسال‌شده",
+  delivered: "تحویل‌شده",
+  cancelled: "لغو شده",
+  returned: "مرجوع شده",
+  expired: "منقضی شده",
+};
+
+const SORTS = {
+  newest: { createdAt: -1, _id: -1 },
+  oldest: { createdAt: 1, _id: 1 },
+  totalDesc: { totalAmount: -1, _id: -1 },
+  totalAsc: { totalAmount: 1, _id: 1 },
+};
+
+const EXPORT_LIMIT = 5000;
 const historyEntry = (status, by = null) => ({ status, at: new Date(), by });
 const PAYABLE_STATUSES = ["pending_payment", "expired"];
 const LOCK_MS = 60 * 1000;
@@ -466,38 +492,16 @@ export const getOrderById = asyncHandler(async (req, res) => {
 
 // ---------- همه سفارش‌ها (ادمین) ----------
 export const getAllOrders = asyncHandler(async (req, res) => {
-  const { status, search, from, to, stockIssue } = req.query;
-  const { page, limit, skip } = parsePagination(req.query, {
-    defaultLimit: 20,
-    maxLimit: 100,
-  });
-
-  const filter = {};
-  filter.status = status ? status : { $ne: "expired" };
-  if (stockIssue === "true") filter.stockIssue = true;
-
-  const dateRange = buildDateFilter(from, to);
-  if (dateRange) filter.createdAt = dateRange;
-
-  if (search) {
-    const rx = new RegExp(escapeRegex(search), "i");
-    const users = await User.find({ phone: rx }).select("_id").limit(50).lean();
-
-    filter.$or = [
-      { orderNumber: rx },
-      { "shippingAddress.phone": rx },
-      { "shippingAddress.fullName": rx },
-      { user: { $in: users.map((u) => u._id) } },
-    ];
-  }
+  const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
+  const filter = await buildOrderFilter(req.query);
 
   const [orders, total] = await Promise.all([
     Order.find(filter)
       .select(
-        "orderNumber user status totalAmount discountAmount stockIssue createdAt payment.paidAt shippingAddress.fullName shippingAddress.phone items.productName items.quantity",
+        "orderNumber user status totalAmount discountAmount stockIssue createdAt payment.paidAt payment.refId refund shipping.trackingCode shippingAddress.fullName shippingAddress.phone shippingAddress.province items.productName items.quantity items.image",
       )
       .populate("user", "phone name")
-      .sort({ createdAt: -1, _id: -1 })
+      .sort(SORTS[req.query.sort] ?? SORTS.newest)
       .skip(skip)
       .limit(limit)
       .lean(),
@@ -520,7 +524,7 @@ const ALLOWED_TRANSITIONS = {
 };
 
 export const updateOrderStatus = asyncHandler(async (req, res) => {
-  const { status } = req.body;
+  const { status, carrier, trackingCode } = req.body;
   const order = await Order.findById(req.params.id);
 
   if (!order) {
@@ -538,13 +542,22 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     throw new Error("این تغییر وضعیت برای سفارش مجاز نیست");
   }
 
+  const isReversal = status === "cancelled" || status === "returned";
+  const set = { status };
+
+  if (status === "shipped") {
+    set["shipping.shippedAt"] = new Date();
+    if (carrier) set["shipping.carrier"] = carrier;
+    if (trackingCode) set["shipping.trackingCode"] = trackingCode;
+  }
+
+  // سفارشی که پولش گرفته شده و لغو یا مرجوع می‌شه، باید عودت وجه بشه
+  if (isReversal && order.payment?.refId) set["refund.required"] = true;
+
   // تغییر اتمیک: اگه ادمین دیگه‌ای هم‌زمان وضعیت رو عوض کرده باشه، این درخواست رد می‌شه
   const updated = await Order.findOneAndUpdate(
     { _id: order._id, status: order.status },
-    {
-      $set: { status },
-      $push: { statusHistory: historyEntry(status, req.user._id) },
-    },
+    { $set: set, $push: { statusHistory: historyEntry(status, req.user._id) } },
     { new: true },
   );
 
@@ -552,8 +565,6 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     res.status(409);
     throw new Error("وضعیت سفارش هم‌زمان تغییر کرد، صفحه را تازه کنید");
   }
-
-  const isReversal = status === "cancelled" || status === "returned";
 
   // برگشت موجودی فقط یک‌بار (اگه همزمان دو درخواست بیاد، فقط یکی claim می‌کنه)
   if (isReversal) {
@@ -590,4 +601,253 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     data: updated,
     refundRequired: isReversal && !!updated.payment?.refId,
   });
+});
+
+const buildOrderFilter = async (query, { withStatus = true } = {}) => {
+  const { status, search, from, to, stockIssue, refundPending } = query;
+  const filter = {};
+
+  // «همه» سفارش‌های منقضی‌شده (رهاشده) رو شامل نمی‌شه
+  if (withStatus) filter.status = status ? status : { $ne: "expired" };
+  if (stockIssue === "true") filter.stockIssue = true;
+  if (refundPending === "true") {
+    filter["refund.required"] = true;
+    filter["refund.doneAt"] = null;
+  }
+
+  const dateRange = buildDateFilter(from, to);
+  if (dateRange) filter.createdAt = dateRange;
+
+  if (search) {
+    const rx = new RegExp(escapeRegex(search), "i");
+    const users = await User.find({ phone: rx }).select("_id").limit(50).lean();
+
+    filter.$or = [
+      { orderNumber: rx },
+      { "shippingAddress.phone": rx },
+      { "shippingAddress.fullName": rx },
+      { "payment.refId": rx },
+      { "shipping.trackingCode": rx },
+      { user: { $in: users.map((u) => u._id) } },
+    ];
+  }
+
+  return filter;
+};
+
+export const getOrderCounts = asyncHandler(async (req, res) => {
+  // شمارنده‌ی هر وضعیت با همه‌ی فیلترها به‌جز خود وضعیت
+  const filter = await buildOrderFilter(req.query, { withStatus: false });
+
+  const [rows, refundPending, stockIssue] = await Promise.all([
+    Order.aggregate([{ $match: filter }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
+    Order.countDocuments({ "refund.required": true, "refund.doneAt": null }),
+    Order.countDocuments({ stockIssue: true, status: { $in: ["paid", "processing"] } }),
+  ]);
+
+  const byStatus = Object.fromEntries(rows.map((r) => [r._id, r.count]));
+  const all = rows.filter((r) => r._id !== "expired").reduce((sum, r) => sum + r.count, 0);
+
+  res.status(200).json({ success: true, data: { all, byStatus, refundPending, stockIssue } });
+});
+
+export const getAdminOrder = asyncHandler(async (req, res) => {
+  const order = await Order.findById(req.params.id)
+    .select("-payment.authority -payment.verifyLockUntil")
+    .populate("user", "phone name email createdAt isBlocked")
+    .populate("statusHistory.by", "name phone")
+    .populate("adminNotes.by", "name phone")
+    .populate("refund.doneBy", "name phone")
+    .lean();
+
+  if (!order) {
+    res.status(404);
+    throw new Error("سفارش یافت نشد");
+  }
+
+  const [stats] = order.user
+    ? await Order.aggregate([
+        { $match: { user: order.user._id, status: { $in: REVENUE_STATUSES } } },
+        { $group: { _id: null, orders: { $sum: 1 }, spent: { $sum: "$totalAmount" } } },
+      ])
+    : [];
+
+  res.status(200).json({
+    success: true,
+    data: {
+      order,
+      // سرور مشخص می‌کنه فرانت چه گذارهایی رو نشون بده تا دو طرف از هم جدا نیفتن
+      allowedTransitions: ALLOWED_TRANSITIONS[order.status] ?? [],
+      customerStats: { orders: stats?.orders ?? 0, spent: stats?.spent ?? 0 },
+    },
+  });
+});
+
+const SHIPPING_EDITABLE = ["paid", "processing", "shipped", "delivered"];
+
+export const updateShipping = asyncHandler(async (req, res) => {
+  const order = await Order.findById(req.params.id).select("status");
+
+  if (!order) {
+    res.status(404);
+    throw new Error("سفارش یافت نشد");
+  }
+
+  if (!SHIPPING_EDITABLE.includes(order.status)) {
+    res.status(400);
+    throw new Error("برای این وضعیت سفارش نمی‌شود اطلاعات ارسال ثبت کرد");
+  }
+
+  const set = {};
+  if (req.body.carrier !== undefined) set["shipping.carrier"] = req.body.carrier || null;
+  if (req.body.trackingCode !== undefined) set["shipping.trackingCode"] = req.body.trackingCode || null;
+
+  const updated = await Order.findByIdAndUpdate(order._id, { $set: set }, { new: true }).select("shipping").lean();
+
+  res.status(200).json({ success: true, data: updated.shipping });
+});
+
+// یادداشت داخلی: فقط اضافه می‌شه (برای حفظ سابقه حذف و ویرایش ندارد)
+export const addOrderNote = asyncHandler(async (req, res) => {
+  const order = await Order.findByIdAndUpdate(
+    req.params.id,
+    { $push: { adminNotes: { text: req.body.text, by: req.user._id, at: new Date() } } },
+    { new: true, runValidators: true },
+  )
+    .select("adminNotes")
+    .populate("adminNotes.by", "name phone")
+    .lean();
+
+  if (!order) {
+    res.status(404);
+    throw new Error("سفارش یافت نشد");
+  }
+
+  res.status(201).json({ success: true, data: order.adminNotes });
+});
+
+export const markRefundDone = asyncHandler(async (req, res) => {
+  const order = await Order.findOneAndUpdate(
+    { _id: req.params.id, "refund.required": true, "refund.doneAt": null },
+    {
+      $set: {
+        "refund.doneAt": new Date(),
+        "refund.doneBy": req.user._id,
+        "refund.note": req.body.note || null,
+      },
+    },
+    { new: true },
+  )
+    .select("refund")
+    .lean();
+
+  if (!order) {
+    res.status(404);
+    throw new Error("سفارشی با عودت وجه در انتظار پیدا نشد");
+  }
+
+  res.status(200).json({ success: true, data: order.refund });
+});
+
+export const bulkUpdateStatus = asyncHandler(async (req, res) => {
+  const { ids } = req.body;
+
+  const result = await Order.updateMany(
+    { _id: { $in: ids }, status: "paid" },
+    {
+      $set: { status: "processing" },
+      $push: { statusHistory: historyEntry("processing", req.user._id) },
+    },
+  );
+
+  res.status(200).json({
+    success: true,
+    data: {
+      requested: ids.length,
+      updated: result.modifiedCount,
+      skipped: ids.length - result.modifiedCount,
+    },
+  });
+});
+
+export const exportOrders = asyncHandler(async (req, res) => {
+  const filter = await buildOrderFilter(req.query);
+
+  const total = await Order.countDocuments(filter);
+  if (total > EXPORT_LIMIT) {
+    res.status(400);
+    throw new Error(`تعداد سفارش‌ها (${total}) بیشتر از ${EXPORT_LIMIT} است؛ بازه یا فیلتر را محدودتر کنید`);
+  }
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="orders-${toTehranDay(new Date())}.csv"`);
+
+  res.write("\uFEFF"); // تا Excel فارسی رو درست نشون بده
+  res.write(
+    csvRow([
+      "شماره سفارش",
+      "تاریخ ثبت",
+      "تاریخ پرداخت",
+      "وضعیت",
+      "نام گیرنده",
+      "موبایل گیرنده",
+      "موبایل حساب",
+      "استان",
+      "شهر",
+      "آدرس",
+      "کد پستی",
+      "اقلام",
+      "تعداد کل",
+      "جمع کالاها (تومان)",
+      "تخفیف (تومان)",
+      "هزینه ارسال (تومان)",
+      "مبلغ کل (تومان)",
+      "نوع تخفیف",
+      "کد تخفیف",
+      "کد پیگیری پرداخت",
+      "پیک",
+      "کد رهگیری",
+      "عودت وجه",
+    ]),
+  );
+
+  const cursor = Order.find(filter)
+    .populate("user", "phone")
+    .sort({ createdAt: -1, _id: -1 })
+    .lean()
+    .cursor();
+
+  for await (const o of cursor) {
+    const refund = !o.refund?.required ? "" : o.refund.doneAt ? "انجام شد" : "در انتظار";
+
+    res.write(
+      csvRow([
+        o.orderNumber,
+        formatJalali(o.createdAt, true),
+        formatJalali(o.payment?.paidAt, true),
+        STATUS_LABELS[o.status] ?? o.status,
+        o.shippingAddress?.fullName,
+        o.shippingAddress?.phone,
+        o.user?.phone,
+        o.shippingAddress?.province,
+        o.shippingAddress?.city,
+        o.shippingAddress?.addressLine,
+        o.shippingAddress?.postalCode,
+        o.items.map((i) => `${i.productName} × ${i.quantity}`).join(" | "),
+        o.items.reduce((sum, i) => sum + i.quantity, 0),
+        o.subtotal,
+        o.discountAmount,
+        o.shippingCost,
+        o.totalAmount,
+        o.discountSource === "coupon" ? "کد تخفیف" : o.discountSource === "loyalty" ? "وفاداری" : "",
+        o.couponCode,
+        o.payment?.refId,
+        o.shipping?.carrier,
+        o.shipping?.trackingCode,
+        refund,
+      ]),
+    );
+  }
+
+  res.end();
 });
