@@ -23,6 +23,7 @@
     "react-hook-form": "^7.89.0",
     "react-redux": "^9.3.0",
     "react-router-dom": "^7.18.4",
+    "recharts": "^3.10.1",
     "tailwindcss": "^4.3.3",
     "vazirmatn": "^33.0.3",
     "zod": "^4.6.5"
