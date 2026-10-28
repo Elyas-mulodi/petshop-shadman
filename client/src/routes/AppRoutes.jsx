@@ -7,12 +7,16 @@ import HomePage from "../pages/shop/HomePage";
 
 const LoginPage = lazy(() => import("../pages/shop/LoginPage"));
 const RegisterPage = lazy(() => import("../pages/shop/RegisterPage"));
-const ForgotPasswordPage = lazy(() => import("../pages/shop/ForgotPasswordPage"));
+const ForgotPasswordPage = lazy(
+  () => import("../pages/shop/ForgotPasswordPage"),
+);
 const ProductListPage = lazy(() => import("../pages/shop/ProductListPage"));
 const ProductDetailPage = lazy(() => import("../pages/shop/ProductDetailPage"));
 const CartPage = lazy(() => import("../pages/shop/CartPage"));
 const CheckoutPage = lazy(() => import("../pages/shop/CheckoutPage"));
-const CheckoutResultPage = lazy(() => import("../pages/shop/CheckoutResultPage"));
+const CheckoutResultPage = lazy(
+  () => import("../pages/shop/CheckoutResultPage"),
+);
 const CategoriesPage = lazy(() => import("../pages/shop/CategoriesPage"));
 const DiscountsPage = lazy(() => import("../pages/shop/DiscountsPage"));
 const ProfilePage = lazy(() => import("../pages/shop/ProfilePage"));
@@ -20,10 +24,18 @@ const OrderDetailPage = lazy(() => import("../pages/shop/OrderDetailPage"));
 const NotFoundPage = lazy(() => import("../pages/shop/NotFoundPage"));
 
 const AdminLayout = lazy(() => import("../layouts/AdminLayout"));
-const AdminDashboardPage = lazy(() => import("../pages/admin/AdminDashboardPage"));
+const AdminDashboardPage = lazy(
+  () => import("../pages/admin/AdminDashboardPage"),
+);
 const AdminUsersPage = lazy(() => import("../pages/admin/AdminUsersPage"));
-const AdminOrderDetailPage = lazy(() => import("../pages/admin/AdminOrderDetailPage"));
-const AdminNotFoundPage = lazy(() => import("../pages/admin/AdminNotFoundPage"));
+const AdminOrderDetailPage = lazy(
+  () => import("../pages/admin/AdminOrderDetailPage"),
+);
+const AdminOrdersPage = lazy(() => import("../pages/admin/AdminOrdersPage"));
+const AdminPrintPage = lazy(() => import("../pages/admin/AdminPrintPage"));
+const AdminNotFoundPage = lazy(
+  () => import("../pages/admin/AdminNotFoundPage"),
+);
 
 const AppRoutes = () => {
   return (
@@ -45,7 +57,10 @@ const AppRoutes = () => {
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/orders/:id" element={<OrderDetailPage />} />
-          <Route path="/my-orders" element={<Navigate to="/profile?tab=orders" replace />} />
+          <Route
+            path="/my-orders"
+            element={<Navigate to="/profile?tab=orders" replace />}
+          />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />
@@ -62,10 +77,20 @@ const AppRoutes = () => {
           }
         >
           <Route index element={<AdminDashboardPage />} />
-          <Route path="users" element={<AdminUsersPage />} />
+          <Route path="orders" element={<AdminOrdersPage />} />
           <Route path="orders/:id" element={<AdminOrderDetailPage />} />
+          <Route path="users" element={<AdminUsersPage />} />
           <Route path="*" element={<AdminNotFoundPage />} />
         </Route>
+
+        <Route
+          path="/admin/print"
+          element={
+            <Suspense fallback={<PageFallback />}>
+              <AdminPrintPage />
+            </Suspense>
+          }
+        />
       </Route>
     </Routes>
   );

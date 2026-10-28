@@ -3,7 +3,7 @@ import Modal from "../ui/Modal";
 import Button from "../ui/Button";
 import { Field, FormError } from "../../auth/AuthParts";
 import { useToast } from "../ui/ToastProvider";
-import { useUpdateOrderStatus } from "../../../features/admin/orders/useAdminOrder";
+import { useUpdateOrderStatus } from "../../../features/admin/orders/useAdminOrders";
 import { ORDER_STATUS } from "../../../utils/orderStatus";
 import { formatToman } from "../../../utils/price";
 import { parseApiError } from "../../../utils/authHelpers";

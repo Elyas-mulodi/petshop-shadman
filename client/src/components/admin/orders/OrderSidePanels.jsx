@@ -7,7 +7,7 @@ import Button from "../ui/Button";
 import { useToast } from "../ui/ToastProvider";
 import { Field } from "../../auth/AuthParts";
 import { TextAreaField } from "../../checkout/FormControls";
-import { useAddOrderNote, useUpdateShipping } from "../../../features/admin/orders/useAdminOrder";
+import { useAddOrderNote, useUpdateShipping } from "../../../features/admin/orders/useAdminOrders";
 import { formatToman } from "../../../utils/price";
 import { formatDate, formatDateTime } from "../../../utils/formatDate";
 import { parseApiError, toPersianDigits } from "../../../utils/authHelpers";
