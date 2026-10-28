@@ -45,7 +45,12 @@ const errorHandler = (err, req, res, next) => {
 
   if (err.name === "MulterError") {
     statusCode = 400;
-    message = err.message;
+    message =
+      err.code === "LIMIT_FILE_SIZE"
+        ? "حجم هر عکس حداکثر ۳ مگابایت است"
+        : err.code === "LIMIT_UNEXPECTED_FILE"
+          ? "تعداد عکس‌ها بیش از حد مجاز است"
+          : err.message;
   }
 
   if (statusCode >= 500) {

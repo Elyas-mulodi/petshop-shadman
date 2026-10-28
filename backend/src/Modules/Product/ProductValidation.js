@@ -90,6 +90,20 @@ const dateField = z
   )
   .optional();
 
+const attributeKey = (variant) =>
+  variant.attributes
+    .map((a) => `${a.name}=${a.value}`)
+    .sort()
+    .join("|");
+
+const noDuplicateVariants = (variants) =>
+  new Set(variants.map(attributeKey)).size === variants.length;
+
+const noDuplicateAttributeNames = (variants) =>
+  variants.every(
+    (v) =>
+      new Set(v.attributes.map((a) => a.name)).size === v.attributes.length,
+  );
 const productBase = z.object({
   name: z
     .string(requiredMsg("نام محصول"))
@@ -103,7 +117,12 @@ const productBase = z.object({
     .max(5000, "توضیحات خیلی طولانی است"),
   brand: objectId("برند"),
   categories: jsonArray(objectId("شناسه دسته‌بندی"), "دسته‌بندی‌ها"),
-  variants: jsonArray(variantSchema, "واریانت‌ها"),
+  variants: jsonArray(variantSchema, "واریانت‌ها")
+    .refine(noDuplicateVariants, "دو واریانت با ویژگی‌های یکسان وجود دارد")
+    .refine(
+      noDuplicateAttributeNames,
+      "در یک واریانت نمی‌توان یک ویژگی را دوبار ثبت کرد",
+    ),
   discountPercent: discountPercentField,
   discountStartDate: dateField,
   discountEndDate: dateField,
@@ -145,4 +164,31 @@ export const getProductsQuerySchema = z.object({
   sort: z.enum(["newest", "priceAsc", "priceDesc"]).optional(),
   page: z.string().regex(/^\d+$/).optional(),
   limit: z.string().regex(/^\d+$/).optional(),
+});
+
+export const getAdminProductsQuerySchema = z.object({
+  search: z.string().trim().max(80).optional(),
+  category: z.string().regex(objectIdRegex, "شناسه دسته‌بندی معتبر نیست").optional(),
+  brand: z.string().regex(objectIdRegex, "شناسه برند معتبر نیست").optional(),
+  active: z.enum(["true", "false"]).optional(),
+  stock: z.enum(["in", "low", "out"]).optional(),
+  discount: z.enum(["active", "none"]).optional(),
+  sort: z.enum(["newest", "oldest", "nameAsc", "priceAsc", "priceDesc"]).optional(),
+  page: z.string().regex(/^\d+$/).optional(),
+  limit: z.string().regex(/^\d+$/).optional(),
+});
+
+export const bulkActiveSchema = z.object({
+  ids: z.array(objectId("شناسه محصول"), requiredMsg("محصول‌ها")).min(1, "حداقل یک محصول انتخاب کنید").max(100, "حداکثر ۱۰۰ محصول"),
+  isActive: z.boolean(requiredMsg("وضعیت")),
+});
+
+// expected: موجودی‌ای که ادمین روی صفحه دیده (برای جلوگیری از بازنویسی تغییر هم‌زمان)
+export const updateStockSchema = z.object({
+  stock: z.number(requiredMsg("موجودی")).int("موجودی باید عدد صحیح باشد").min(0, "موجودی نمی‌تواند منفی باشد").max(1_000_000, "موجودی بیش از حد مجاز است"),
+  expected: z.number(requiredMsg("موجودی فعلی")).int().min(-1_000_000).max(1_000_000),
+});
+
+export const reorderImagesSchema = z.object({
+  images: z.array(z.string().min(1), requiredMsg("تصاویر")).min(1, "حداقل یک تصویر لازم است").max(8, "حداکثر ۸ تصویر"),
 });

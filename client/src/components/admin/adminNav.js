@@ -18,7 +18,7 @@ export const ADMIN_NAV = [
   {
     title: "فروش",
     items: [
-      { to: "/admin/orders", label: "سفارش‌ها", icon: ShoppingCart, ready: false },
+      { to: "/admin/orders", label: "سفارش‌ها", icon: ShoppingCart, ready: true },
       { to: "/admin/coupons", label: "کدهای تخفیف", icon: Ticket, ready: false },
       { to: "/admin/loyalty", label: "باشگاه مشتریان", icon: Gift, ready: false },
     ],
@@ -26,7 +26,7 @@ export const ADMIN_NAV = [
   {
     title: "کاتالوگ",
     items: [
-      { to: "/admin/products", label: "محصولات", icon: Package, ready: false },
+      { to: "/admin/products", label: "محصولات", icon: Package, ready: true },
       { to: "/admin/categories", label: "دسته‌بندی‌ها", icon: FolderTree, ready: false },
       { to: "/admin/brands", label: "برندها", icon: Tag, ready: false },
       { to: "/admin/inventory", label: "موجودی", icon: Warehouse, ready: false },
