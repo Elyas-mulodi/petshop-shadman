@@ -21,7 +21,14 @@ const isDiscountActiveNow = (p, now) =>
   (!p.discountEndDate || now <= p.discountEndDate);
 
 // فیلتر لیست ادمین (برخلاف لیست عمومی، محصول غیرفعال هم دیده می‌شه)
-const buildAdminFilter = ({ search, category, brand, active, stock, discount } = {}) => {
+const buildAdminFilter = ({
+  search,
+  category,
+  brand,
+  active,
+  stock,
+  discount,
+} = {}) => {
   const threshold = lowStockThreshold();
   const filter = {};
   const and = [];
@@ -34,15 +41,25 @@ const buildAdminFilter = ({ search, category, brand, active, stock, discount } =
   if (brand) filter.brand = brand;
   if (active) filter.isActive = active === "true";
 
-  if (stock === "out") and.push({ variants: { $not: { $elemMatch: { stock: { $gt: 0 } } } } });
-  if (stock === "low") and.push({ variants: { $elemMatch: { stock: { $gt: 0, $lte: threshold } } } });
-  if (stock === "in") and.push({ variants: { $elemMatch: { stock: { $gt: threshold } } } });
+  if (stock === "out")
+    and.push({ variants: { $not: { $elemMatch: { stock: { $gt: 0 } } } } });
+  if (stock === "low")
+    and.push({
+      variants: { $elemMatch: { stock: { $gt: 0, $lte: threshold } } },
+    });
+  if (stock === "in")
+    and.push({ variants: { $elemMatch: { stock: { $gt: threshold } } } });
 
   if (discount === "active") {
     const now = new Date();
     and.push(
       { discountPercent: { $gt: 0 } },
-      { $or: [{ discountStartDate: null }, { discountStartDate: { $lte: now } }] },
+      {
+        $or: [
+          { discountStartDate: null },
+          { discountStartDate: { $lte: now } },
+        ],
+      },
       { $or: [{ discountEndDate: null }, { discountEndDate: { $gte: now } }] },
     );
   }
@@ -289,7 +306,10 @@ export const updateProduct = asyncHandler(async (req, res) => {
       // واریانت موجود: _id حفظ می‌شه تا سبد خرید و سفارش‌ها نشکنن
       current.attributes = incoming.attributes;
       current.price = incoming.price;
-      current.stock = incoming.stock;
+      // واریانت موجود: _id حفظ می‌شه تا سبد خرید و سفارش‌ها نشکنن.
+      // موجودی عمداً دست نمی‌خوره (فقط سفارش‌ها و ویرایش سریع موجودی اون رو عوض می‌کنن)
+      current.attributes = incoming.attributes;
+      current.price = incoming.price;
       if (incoming.sku) current.sku = incoming.sku;
       merged.push(current);
     }
@@ -364,7 +384,10 @@ export const deleteProduct = asyncHandler(async (req, res) => {
 
 // ---------- لیست ادمین ----------
 export const getAdminProducts = asyncHandler(async (req, res) => {
-  const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
+  const { page, limit, skip } = parsePagination(req.query, {
+    defaultLimit: 20,
+    maxLimit: 100,
+  });
   const filter = buildAdminFilter(req.query);
   const sort = req.query.sort in ADMIN_SORTS ? req.query.sort : "newest";
   const threshold = lowStockThreshold();
@@ -381,9 +404,13 @@ export const getAdminProducts = asyncHandler(async (req, res) => {
     .limit(limit)
     .lean();
 
-  if (sort === "nameAsc") query = query.collation({ locale: "fa", strength: 2 });
+  if (sort === "nameAsc")
+    query = query.collation({ locale: "fa", strength: 2 });
 
-  const [products, total] = await Promise.all([query, Product.countDocuments(filter)]);
+  const [products, total] = await Promise.all([
+    query,
+    Product.countDocuments(filter),
+  ]);
 
   const data = products.map((p) => {
     const stocks = p.variants.map((v) => v.stock);
@@ -437,7 +464,14 @@ export const getAdminProductCounts = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    data: { all, active, inactive: all - active, outOfStock, lowStock, discounted },
+    data: {
+      all,
+      active,
+      inactive: all - active,
+      outOfStock,
+      lowStock,
+      discounted,
+    },
   });
 });
 
@@ -460,12 +494,21 @@ export const getAttributeSuggestions = asyncHandler(async (req, res) => {
     { $unwind: "$variants.attributes" },
     {
       $group: {
-        _id: { name: "$variants.attributes.name", value: "$variants.attributes.value" },
+        _id: {
+          name: "$variants.attributes.name",
+          value: "$variants.attributes.value",
+        },
         count: { $sum: 1 },
       },
     },
     { $sort: { count: -1, "_id.value": 1 } },
-    { $group: { _id: "$_id.name", total: { $sum: "$count" }, values: { $push: "$_id.value" } } },
+    {
+      $group: {
+        _id: "$_id.name",
+        total: { $sum: "$count" },
+        values: { $push: "$_id.value" },
+      },
+    },
     { $sort: { total: -1, _id: 1 } },
     { $limit: 30 },
     { $project: { _id: 0, name: "$_id", values: { $slice: ["$values", 40] } } },
@@ -478,11 +521,18 @@ export const getAttributeSuggestions = asyncHandler(async (req, res) => {
 export const bulkSetActive = asyncHandler(async (req, res) => {
   const { ids, isActive } = req.body;
 
-  const result = await Product.updateMany({ _id: { $in: ids } }, { $set: { isActive } });
+  const result = await Product.updateMany(
+    { _id: { $in: ids } },
+    { $set: { isActive } },
+  );
 
   res.status(200).json({
     success: true,
-    data: { requested: ids.length, matched: result.matchedCount, updated: result.modifiedCount },
+    data: {
+      requested: ids.length,
+      matched: result.matchedCount,
+      updated: result.modifiedCount,
+    },
   });
 });
 
@@ -502,7 +552,9 @@ export const updateVariantStock = asyncHandler(async (req, res) => {
     const exists = await Product.exists({ _id: id, "variants._id": variantId });
     res.status(exists ? 409 : 404);
     throw new Error(
-      exists ? "موجودی هم‌زمان تغییر کرده است، صفحه را تازه کنید" : "محصول یا واریانت پیدا نشد",
+      exists
+        ? "موجودی هم‌زمان تغییر کرده است، صفحه را تازه کنید"
+        : "محصول یا واریانت پیدا نشد",
     );
   }
 
@@ -531,7 +583,9 @@ export const addProductImages = asyncHandler(async (req, res) => {
     throw new Error(`حداکثر ${MAX_IMAGES} عکس برای هر محصول مجاز است`);
   }
 
-  product.images.push(...req.files.map((file) => getFileUrl("products", file.filename)));
+  product.images.push(
+    ...req.files.map((file) => getFileUrl("products", file.filename)),
+  );
   await product.save();
 
   res.status(201).json({ success: true, data: product.images });
@@ -588,5 +642,7 @@ export const duplicateProduct = asyncHandler(async (req, res) => {
     images: [],
   });
 
-  res.status(201).json({ success: true, data: { _id: copy._id, slug: copy.slug } });
+  res
+    .status(201)
+    .json({ success: true, data: { _id: copy._id, slug: copy.slug } });
 });

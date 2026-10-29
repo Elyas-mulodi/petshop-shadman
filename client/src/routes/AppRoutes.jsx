@@ -36,6 +36,9 @@ const AdminPrintPage = lazy(() => import("../pages/admin/AdminPrintPage"));
 const AdminProductsPage = lazy(
   () => import("../pages/admin/AdminProductsPage"),
 );
+const AdminProductFormPage = lazy(
+  () => import("../pages/admin/AdminProductFormPage"),
+);
 
 const AdminNotFoundPage = lazy(
   () => import("../pages/admin/AdminNotFoundPage"),
@@ -85,6 +88,8 @@ const AppRoutes = () => {
           <Route path="orders/:id" element={<AdminOrderDetailPage />} />
           <Route path="users" element={<AdminUsersPage />} />
           <Route path="products" element={<AdminProductsPage />} />
+          <Route path="products/new" element={<AdminProductFormPage />} />
+          <Route path="products/:id" element={<AdminProductFormPage />} />
           <Route path="*" element={<AdminNotFoundPage />} />
         </Route>
 

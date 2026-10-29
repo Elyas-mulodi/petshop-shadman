@@ -36,3 +36,5 @@ export const formatBucketFull = (day, granularity) => {
   if (granularity === "week") return `هفته‌ی ${dayShort.format(noon(day))}`;
   return dayFull.format(noon(day));
 };
+
+export const toTehranDay = (date) => dayFormatter.format(date);
