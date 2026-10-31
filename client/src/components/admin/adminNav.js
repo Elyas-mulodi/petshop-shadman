@@ -19,8 +19,8 @@ export const ADMIN_NAV = [
     title: "فروش",
     items: [
       { to: "/admin/orders", label: "سفارش‌ها", icon: ShoppingCart, ready: true },
-      { to: "/admin/coupons", label: "کدهای تخفیف", icon: Ticket, ready: false },
-      { to: "/admin/loyalty", label: "باشگاه مشتریان", icon: Gift, ready: false },
+      { to: "/admin/coupons", label: "کدهای تخفیف", icon: Ticket, ready: true },
+      { to: "/admin/loyalty", label: "باشگاه مشتریان", icon: Gift, ready: true },
     ],
   },
   {

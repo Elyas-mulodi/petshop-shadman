@@ -38,3 +38,6 @@ export const formatBucketFull = (day, granularity) => {
 };
 
 export const toTehranDay = (date) => dayFormatter.format(date);
+
+export const dayStartISO = (day) => `${day}T00:00:00${OFFSET}`;
+export const dayEndISO = (day) => `${day}T23:59:59.999${OFFSET}`;
