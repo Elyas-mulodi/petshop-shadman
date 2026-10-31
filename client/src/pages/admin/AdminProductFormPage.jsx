@@ -12,9 +12,14 @@ const AdminProductFormPage = () => {
   const isEdit = !!id;
   const query = useAdminProduct(id, isEdit);
 
-  // آخرین نسخه‌ای که همین فرم ذخیره کرده؛ فرم بعد از ذخیره با اون دوباره ساخته می‌شه (مثلاً SKUهای خودکار)
-  const [saved, setSaved] = useState(null);
+  // مبنای مقایسه‌ی فرم: فقط اولین بار که محصول می‌رسه و بعد از ذخیره‌ی خود فرم عوض می‌شه.
+  // تغییرهای بعدیِ سرور (موجودی، عکس) فرم رو «تغییرکرده» نشون نمی‌دن.
+  const [baseline, setBaseline] = useState(null);
   const [version, setVersion] = useState(0);
+
+  if (isEdit && query.data && baseline?._id !== id) {
+    setBaseline(query.data);
+  }
 
   if (isEdit && query.isLoading) {
     return (
@@ -52,15 +57,15 @@ const AdminProductFormPage = () => {
     );
   }
 
-  const base = saved?._id === id ? saved : query.data;
+  if (isEdit && baseline?._id !== id) return null; // لحظه‌ی کوتاه تا مبنا ست بشه
 
   return (
     <ProductForm
       key={`${id ?? "new"}-${version}`}
-      product={isEdit ? base : null}
+      product={isEdit ? baseline : null}
       liveProduct={query.data}
-      onSaved={(product) => {
-        setSaved(product);
+      onSaved={(saved) => {
+        setBaseline(saved);
         setVersion((v) => v + 1);
       }}
     />

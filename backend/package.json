@@ -10,7 +10,8 @@
     "seed:orders": "node src/seedOrders.js",
     "migrate:indexes": "node src/migrations/syncUserIndexes.js",
     "migrate:products": "node src/migrations/backfillProductMinPrice.js",
-    "migrate:orders": "node src/migrations/syncOrderIndexes.js"
+    "migrate:orders": "node src/migrations/syncOrderIndexes.js",
+    "migrate:categories": "node src/migrations/backfillCategorySortOrder.js"
   },
   "keywords": [],
   "author": "",

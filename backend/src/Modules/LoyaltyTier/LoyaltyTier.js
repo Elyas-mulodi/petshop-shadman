@@ -1,18 +1,23 @@
 import express from "express";
 import { protect, authorize } from "../../Middlewares/auth.js";
+import validate from "../../Middlewares/validate.js";
 import {
   createLoyaltyTier,
   getAllLoyaltyTiers,
+  getPublicLoyaltyTiers,
   updateLoyaltyTier,
   deleteLoyaltyTier,
-  getPublicLoyaltyTiers,
 } from "./LoyaltyTierCn.js";
+import { createLoyaltyTierSchema, updateLoyaltyTierSchema } from "./LoyaltyTierValidation.js";
 
 const router = express.Router();
+const admin = [protect, authorize("admin")];
 
-router.get("/", protect, authorize("admin"), getAllLoyaltyTiers);
-router.post("/", protect, authorize("admin"), createLoyaltyTier);
-router.put("/:id", protect, authorize("admin"), updateLoyaltyTier);
-router.delete("/:id", protect, authorize("admin"), deleteLoyaltyTier);
 router.get("/public", getPublicLoyaltyTiers);
+
+router.get("/", ...admin, getAllLoyaltyTiers);
+router.post("/", ...admin, validate(createLoyaltyTierSchema), createLoyaltyTier);
+router.put("/:id", ...admin, validate(updateLoyaltyTierSchema), updateLoyaltyTier);
+router.delete("/:id", ...admin, deleteLoyaltyTier);
+
 export default router;

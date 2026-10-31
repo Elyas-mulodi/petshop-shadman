@@ -16,18 +16,26 @@ const parentField = z
   .nullable()
   .or(z.literal(""));
 
-const isActiveField = z
-  .enum(["true", "false"], { error: "مقدار isActive باید true یا false باشد" })
+const boolString = (message) =>
+  z.enum(["true", "false"], { error: message }).optional();
+
+// فرم multipart است، پس عددها به‌صورت رشته می‌رسن
+const sortOrderField = z
+  .string()
+  .regex(/^\d{1,4}$/, "ترتیب نمایش باید عددی بین ۰ تا ۹۹۹۹ باشد")
   .optional();
 
 export const createCategorySchema = z.object({
   name: nameField,
   parent: parentField,
-  isActive: isActiveField,
+  isActive: boolString("مقدار isActive باید true یا false باشد"),
+  sortOrder: sortOrderField,
 });
 
 export const updateCategorySchema = z.object({
   name: nameField.optional(),
   parent: parentField,
-  isActive: isActiveField,
+  isActive: boolString("مقدار isActive باید true یا false باشد"),
+  sortOrder: sortOrderField,
+  removeImage: boolString("مقدار removeImage باید true یا false باشد"),
 });

@@ -22,6 +22,10 @@ const categorySchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    sortOrder: {
+      type: Number,
+      default: 0,
+    },
     isActive: {
       type: Boolean,
       default: true,

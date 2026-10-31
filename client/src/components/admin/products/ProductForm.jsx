@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   ExternalLink,
@@ -20,6 +21,7 @@ import CategoryPicker from "./CategoryPicker";
 import VariantsEditor from "./VariantsEditor";
 import DiscountSection from "./DiscountSection";
 import StockDrawer from "./StockDrawer";
+import { ImageManager, PendingImages } from "./ProductImages";
 import {
   useAdminBrands,
   useAdminCategories,
@@ -27,6 +29,7 @@ import {
   useCreateProduct,
   useUpdateProduct,
 } from "../../../features/admin/products/useAdminProducts";
+import { uploadProductImages } from "../../../features/admin/products/productImages";
 import { buildCategoryTree } from "../../../features/admin/products/categoryTree";
 import {
   emptyForm,
@@ -39,7 +42,7 @@ import {
 } from "../../../features/admin/products/productForm";
 import { useUnsavedWarning } from "../../../hooks/useUnsavedWarning";
 import { formatToman } from "../../../utils/price";
-import { toPersianDigits } from "../../../utils/authHelpers";
+import { parseApiError, toPersianDigits } from "../../../utils/authHelpers";
 
 const focusField = (key) => {
   const el = document.querySelector(`[data-field="${key}"]`);
@@ -69,6 +72,7 @@ const mapServerErrors = (err) => {
 const ProductForm = ({ product, liveProduct, onSaved }) => {
   const navigate = useNavigate();
   const toast = useToast();
+  const queryClient = useQueryClient();
   const isEdit = !!product;
 
   const initial = useMemo(
@@ -83,7 +87,21 @@ const ProductForm = ({ product, liveProduct, onSaved }) => {
   const [stockOpen, setStockOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
 
-  const dirty = snapshot(form) !== initialSnapshot;
+  // عکس‌های انتخاب‌شده در حالت ساخت (قبل از آپلود)
+  const [pending, setPending] = useState([]);
+  const [creating, setCreating] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(null);
+
+  const pendingRef = useRef(pending);
+  useEffect(() => {
+    pendingRef.current = pending;
+  });
+  useEffect(
+    () => () => pendingRef.current.forEach((p) => URL.revokeObjectURL(p.url)),
+    [],
+  );
+
+  const dirty = snapshot(form) !== initialSnapshot || pending.length > 0;
   useUnsavedWarning(dirty);
 
   const categories = useAdminCategories();
@@ -110,7 +128,7 @@ const ProductForm = ({ product, liveProduct, onSaved }) => {
 
   const create = useCreateProduct();
   const edit = useUpdateProduct(product?._id);
-  const saving = create.isPending || edit.isPending;
+  const saving = creating || edit.isPending;
 
   const update = (patch) => {
     setForm((prev) => ({ ...prev, ...patch }));
@@ -123,7 +141,7 @@ const ProductForm = ({ product, liveProduct, onSaved }) => {
   );
   const errors = { ...serverErrors, ...clientErrors };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSubmitted(true);
 
     const found = validateProductForm(form);
@@ -134,22 +152,54 @@ const ProductForm = ({ product, liveProduct, onSaved }) => {
       return;
     }
 
-    const mutation = isEdit ? edit : create;
+    const fail = (err) => {
+      const mapped = mapServerErrors(err);
+      setServerErrors(mapped.fields);
+      toast.error(mapped.message);
+      const firstServerKey = Object.keys(mapped.fields)[0];
+      if (firstServerKey) setTimeout(() => focusField(firstServerKey), 60);
+    };
 
-    mutation.mutate(formToPayload(form), {
-      onSuccess: (saved) => {
-        toast.success(isEdit ? "تغییرات ذخیره شد" : "محصول ساخته شد");
-        if (isEdit) onSaved(saved);
-        else navigate(`/admin/products/${saved._id}`, { replace: true });
-      },
-      onError: (err) => {
-        const mapped = mapServerErrors(err);
-        setServerErrors(mapped.fields);
-        toast.error(mapped.message);
-        const firstServerKey = Object.keys(mapped.fields)[0];
-        if (firstServerKey) setTimeout(() => focusField(firstServerKey), 60);
-      },
-    });
+    if (isEdit) {
+      edit.mutate(formToPayload(form), {
+        onSuccess: (saved) => {
+          toast.success("تغییرات ذخیره شد");
+          onSaved(saved);
+        },
+        onError: fail,
+      });
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const created = await create.mutateAsync(formToPayload(form));
+
+      if (pending.length > 0) {
+        try {
+          await uploadProductImages(
+            created._id,
+            pending.map((p) => p.file),
+            setUploadProgress,
+          );
+          toast.success("محصول و عکس‌هایش ذخیره شد");
+        } catch (err) {
+          toast.error(
+            `محصول ساخته شد، اما آپلود عکس‌ها انجام نشد (${parseApiError(err).message}). از همین صفحه دوباره اضافه‌شان کنید.`,
+          );
+        }
+        queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
+      } else {
+        toast.success("محصول ساخته شد");
+      }
+
+      navigate(`/admin/products/${created._id}`, { replace: true });
+    } catch (err) {
+      fail(err);
+    } finally {
+      setCreating(false);
+      setUploadProgress(null);
+    }
   };
 
   const requestLeave = () =>
@@ -302,6 +352,21 @@ const ProductForm = ({ product, liveProduct, onSaved }) => {
             </div>
           </Card>
 
+          <Card icon={ImageIcon} title="تصاویر">
+            {isEdit ? (
+              <ImageManager
+                productId={product._id}
+                images={liveProduct?.images ?? product.images ?? []}
+              />
+            ) : (
+              <PendingImages
+                pending={pending}
+                onChange={setPending}
+                disabled={saving}
+              />
+            )}
+          </Card>
+
           <Card title="خلاصه">
             <dl className="space-y-3 text-sm">
               <div className="flex justify-between gap-3">
@@ -328,24 +393,19 @@ const ProductForm = ({ product, liveProduct, onSaved }) => {
               </div>
             </dl>
           </Card>
-
-          <Card icon={ImageIcon} title="تصاویر">
-            <p className="text-xs leading-6 text-muted">
-              مدیریت تصاویر محصول در مرحله‌ی بعد اضافه می‌شود. تا آن موقع محصول
-              بدون عکس نمایش داده می‌شود.
-            </p>
-          </Card>
         </div>
       </div>
 
       <div className="sticky bottom-0 z-20 -mx-4 mt-8 border-t border-line bg-ink/90 px-4 py-3 backdrop-blur-md lg:-mx-8 lg:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
           <p className="text-xs text-muted">
-            {dirty
-              ? "تغییرات ذخیره‌نشده دارید"
-              : isEdit
-                ? "همه‌ی تغییرات ذخیره شده است"
-                : ""}
+            {uploadProgress !== null
+              ? `در حال آپلود عکس‌ها ${toPersianDigits(uploadProgress)}٪`
+              : dirty
+                ? "تغییرات ذخیره‌نشده دارید"
+                : isEdit
+                  ? "همه‌ی تغییرات ذخیره شده است"
+                  : ""}
           </p>
           <div className="flex items-center gap-2">
             <Button

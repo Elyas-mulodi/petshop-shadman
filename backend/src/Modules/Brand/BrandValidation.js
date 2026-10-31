@@ -10,4 +10,6 @@ export const createBrandSchema = z.object({
   isActive: z.enum(["true", "false"], { error: "مقدار isActive باید true یا false باشد" }).optional(),
 });
 
-export const updateBrandSchema = createBrandSchema.partial();
+export const updateBrandSchema = createBrandSchema.partial().extend({
+  removeLogo: z.enum(["true", "false"], { error: "مقدار removeLogo باید true یا false باشد" }).optional(),
+});

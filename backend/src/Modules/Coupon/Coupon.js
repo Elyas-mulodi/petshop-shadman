@@ -4,6 +4,7 @@ import validate from "../../Middlewares/validate.js";
 import {
   createCoupon,
   getAllCoupons,
+  getCouponCounts,
   updateCoupon,
   deleteCoupon,
   applyCoupon,
@@ -12,27 +13,23 @@ import {
   createCouponSchema,
   updateCouponSchema,
   applyCouponSchema,
+  getCouponsQuerySchema,
 } from "./CouponValidation.js";
 
 const router = express.Router();
+const admin = [protect, authorize("admin")];
 
 // ---------- ادمین ----------
-router.get("/", protect, authorize("admin"), getAllCoupons);
-router.post(
+router.get(
   "/",
-  protect,
-  authorize("admin"),
-  validate(createCouponSchema),
-  createCoupon,
+  ...admin,
+  validate(getCouponsQuerySchema, "query"),
+  getAllCoupons,
 );
-router.put(
-  "/:id",
-  protect,
-  authorize("admin"),
-  validate(updateCouponSchema),
-  updateCoupon,
-);
-router.delete("/:id", protect, authorize("admin"), deleteCoupon);
+router.get("/counts", ...admin, getCouponCounts);
+router.post("/", ...admin, validate(createCouponSchema), createCoupon);
+router.put("/:id", ...admin, validate(updateCouponSchema), updateCoupon);
+router.delete("/:id", ...admin, deleteCoupon);
 
 // ---------- کاربر ----------
 router.post("/apply", protect, validate(applyCouponSchema), applyCoupon);
