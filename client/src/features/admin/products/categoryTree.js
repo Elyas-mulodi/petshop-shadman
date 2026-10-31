@@ -59,3 +59,10 @@ export const toggleCategory = (selected, node, checked, index) => {
 
   return [...next];
 };
+
+// شناسه‌ی همه‌ی فرزندان (و نوه‌ها) یک گره
+export const descendantIds = (node) => node.children.flatMap((child) => [child._id, ...descendantIds(child)]);
+
+// تعداد سطح‌های زیر یک گره (بدون فرزند ← ۰)
+export const subtreeHeight = (node) =>
+  node.children.length === 0 ? 0 : 1 + Math.max(...node.children.map(subtreeHeight));

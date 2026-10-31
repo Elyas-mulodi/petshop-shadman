@@ -51,10 +51,10 @@ export const useAdminBrands = () =>
   useQuery({
     queryKey: ["admin", "brands", "all"],
     queryFn: ({ signal }) =>
-      get("/brands", { params: { all: "true" }, signal }).then((r) => r.data),
+      get("/brands/admin/all", { signal }).then((r) => r.data),
     staleTime: 5 * 60_000,
   });
-
+  
 // بعد از هر تغییر، لیست و شمارنده‌ها و گزارش موجودی داشبورد تازه می‌شن
 const useProductMutation = (request) => {
   const queryClient = useQueryClient();
