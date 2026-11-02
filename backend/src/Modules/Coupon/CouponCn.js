@@ -5,6 +5,19 @@ import Order from "../Order/OrderMd.js";
 import { buildCartResponse } from "../../Utils/cartHelper.js";
 import escapeRegex from "../../Utils/escapeRegex.js";
 import { parsePagination } from "../../Utils/pagination.js";
+import { logAudit } from "../../Utils/audit.js";
+
+const COUPON_AUDIT_FIELDS = {
+  code: "کد",
+  discountType: "نوع تخفیف",
+  discountValue: "مقدار تخفیف",
+  maxDiscountAmount: "سقف تخفیف",
+  minCartAmount: "حداقل سبد",
+  startsAt: "شروع",
+  expiresAt: "پایان",
+  usageLimit: "سقف استفاده",
+  isActive: "فعال بودن",
+};
 
 const REVENUE_STATUSES = ["paid", "processing", "shipped", "delivered"];
 const STATUS_KEYS = ["active", "scheduled", "expired", "exhausted", "disabled"];
@@ -69,6 +82,14 @@ export const createCoupon = asyncHandler(async (req, res) => {
   }
 
   const coupon = await Coupon.create(req.body);
+
+  await logAudit(req, {
+    action: "coupon.create",
+    entityType: "coupon",
+    entityId: coupon._id,
+    entityLabel: coupon.code,
+    summary: `کد تخفیف ${coupon.code} ساخته شد`,
+  });
 
   res.status(201).json({ success: true, data: coupon });
 });
@@ -171,6 +192,8 @@ export const updateCoupon = asyncHandler(async (req, res) => {
     isActive,
   } = req.body;
 
+  const before = coupon.toObject();
+
   if (code !== undefined && code.toUpperCase() !== coupon.code) {
     const duplicate = await Coupon.exists({
       code: code.toUpperCase(),
@@ -217,6 +240,17 @@ export const updateCoupon = asyncHandler(async (req, res) => {
 
   await coupon.save();
 
+  const changes = diffObjects(before, coupon, COUPON_AUDIT_FIELDS);
+  if (changes.length > 0) {
+    await logAudit(req, {
+      action: "coupon.update",
+      entityType: "coupon",
+      entityId: coupon._id,
+      entityLabel: coupon.code,
+      summary: `کد تخفیف ${coupon.code} ویرایش شد: ${changes.map((c) => c.label).join("، ")}`,
+      changes,
+    });
+  }
   res.status(200).json({ success: true, data: coupon });
 });
 
@@ -237,6 +271,14 @@ export const deleteCoupon = asyncHandler(async (req, res) => {
   }
 
   await coupon.deleteOne();
+
+  await logAudit(req, {
+    action: "coupon.delete",
+    entityType: "coupon",
+    entityLabel: coupon.code,
+    summary: `کد تخفیف ${coupon.code} حذف شد`,
+  });
+
   res.status(200).json({ success: true, message: "کد تخفیف حذف شد" });
 });
 

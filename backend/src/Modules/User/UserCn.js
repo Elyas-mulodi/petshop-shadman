@@ -120,6 +120,16 @@ export const toggleBlockUser = asyncHandler(async (req, res) => {
   user.isBlocked = !user.isBlocked;
   await user.save();
 
+  await logAudit(req, {
+    action: "user.block",
+    entityType: "user",
+    entityId: user._id,
+    entityLabel: user.phone,
+    summary: user.isBlocked
+      ? `کاربر ${user.phone} مسدود شد`
+      : `کاربر ${user.phone} از حالت مسدود خارج شد`,
+  });
+  
   res.status(200).json({
     success: true,
     message: user.isBlocked ? "کاربر بلاک شد" : "کاربر از بلاک خارج شد",

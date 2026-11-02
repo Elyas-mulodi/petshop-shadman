@@ -26,6 +26,8 @@ import {
   toTehranDay,
 } from "../../Utils/dateRange.js";
 import { csvRow } from "../../Utils/csv.js";
+import { getSettings } from "../../Utils/settings.js";
+import { logAudit } from "../../Utils/audit.js";
 
 const REVENUE_STATUSES = ["paid", "processing", "shipped", "delivered"];
 
@@ -56,20 +58,17 @@ const lockIsFree = (now) => [
   { "payment.verifyLockUntil": { $lt: now } },
 ];
 
-const getShippingCost = (subtotal) => {
-  const flatCost = Number(process.env.SHIPPING_COST || 0);
-  const freeThreshold = Number(process.env.FREE_SHIPPING_THRESHOLD || 0);
-  return subtotal >= freeThreshold ? 0 : flatCost;
+const getShippingCost = async (subtotal) => {
+  const { cost, freeThreshold } = (await getSettings()).shipping;
+  return freeThreshold > 0 && subtotal >= freeThreshold ? 0 : cost;
 };
 
-// ---------- تنظیمات ارسال (عمومی) ----------
 export const getShippingConfig = asyncHandler(async (req, res) => {
+  const { cost, freeThreshold } = (await getSettings()).shipping;
+
   res.status(200).json({
     success: true,
-    data: {
-      shippingCost: Number(process.env.SHIPPING_COST || 0),
-      freeShippingThreshold: Number(process.env.FREE_SHIPPING_THRESHOLD || 0),
-    },
+    data: { shippingCost: cost, freeShippingThreshold: freeThreshold },
   });
 });
 
@@ -127,7 +126,7 @@ export const createOrder = asyncHandler(async (req, res) => {
     }
   }
 
-  const shippingCost = getShippingCost(subtotal);
+  const shippingCost = await getShippingCost(subtotal);
   const totalAmount = subtotal - discountAmount + shippingCost;
 
   // تخفیف (کد یا وفاداری) نباید هم‌زمان روی دو سفارش پرداخت‌نشده بنشینه
@@ -492,7 +491,10 @@ export const getOrderById = asyncHandler(async (req, res) => {
 
 // ---------- همه سفارش‌ها (ادمین) ----------
 export const getAllOrders = asyncHandler(async (req, res) => {
-  const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
+  const { page, limit, skip } = parsePagination(req.query, {
+    defaultLimit: 20,
+    maxLimit: 100,
+  });
   const filter = await buildOrderFilter(req.query);
 
   const [orders, total] = await Promise.all([
@@ -596,6 +598,21 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     );
   }
 
+  await logAudit(req, {
+    action: "order.status",
+    entityType: "order",
+    entityId: updated._id,
+    entityLabel: updated.orderNumber,
+    summary: `وضعیت سفارش ${updated.orderNumber} از «${STATUS_LABELS[order.status]}» به «${STATUS_LABELS[status]}» تغییر کرد`,
+    changes: [
+      {
+        field: "status",
+        label: "وضعیت",
+        from: STATUS_LABELS[order.status],
+        to: STATUS_LABELS[status],
+      },
+    ],
+  });
   res.status(200).json({
     success: true,
     data: updated,
@@ -640,15 +657,26 @@ export const getOrderCounts = asyncHandler(async (req, res) => {
   const filter = await buildOrderFilter(req.query, { withStatus: false });
 
   const [rows, refundPending, stockIssue] = await Promise.all([
-    Order.aggregate([{ $match: filter }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
+    Order.aggregate([
+      { $match: filter },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]),
     Order.countDocuments({ "refund.required": true, "refund.doneAt": null }),
-    Order.countDocuments({ stockIssue: true, status: { $in: ["paid", "processing"] } }),
+    Order.countDocuments({
+      stockIssue: true,
+      status: { $in: ["paid", "processing"] },
+    }),
   ]);
 
   const byStatus = Object.fromEntries(rows.map((r) => [r._id, r.count]));
-  const all = rows.filter((r) => r._id !== "expired").reduce((sum, r) => sum + r.count, 0);
+  const all = rows
+    .filter((r) => r._id !== "expired")
+    .reduce((sum, r) => sum + r.count, 0);
 
-  res.status(200).json({ success: true, data: { all, byStatus, refundPending, stockIssue } });
+  res.status(200).json({
+    success: true,
+    data: { all, byStatus, refundPending, stockIssue },
+  });
 });
 
 export const getAdminOrder = asyncHandler(async (req, res) => {
@@ -668,7 +696,13 @@ export const getAdminOrder = asyncHandler(async (req, res) => {
   const [stats] = order.user
     ? await Order.aggregate([
         { $match: { user: order.user._id, status: { $in: REVENUE_STATUSES } } },
-        { $group: { _id: null, orders: { $sum: 1 }, spent: { $sum: "$totalAmount" } } },
+        {
+          $group: {
+            _id: null,
+            orders: { $sum: 1 },
+            spent: { $sum: "$totalAmount" },
+          },
+        },
       ])
     : [];
 
@@ -699,10 +733,18 @@ export const updateShipping = asyncHandler(async (req, res) => {
   }
 
   const set = {};
-  if (req.body.carrier !== undefined) set["shipping.carrier"] = req.body.carrier || null;
-  if (req.body.trackingCode !== undefined) set["shipping.trackingCode"] = req.body.trackingCode || null;
+  if (req.body.carrier !== undefined)
+    set["shipping.carrier"] = req.body.carrier || null;
+  if (req.body.trackingCode !== undefined)
+    set["shipping.trackingCode"] = req.body.trackingCode || null;
 
-  const updated = await Order.findByIdAndUpdate(order._id, { $set: set }, { new: true }).select("shipping").lean();
+  const updated = await Order.findByIdAndUpdate(
+    order._id,
+    { $set: set },
+    { new: true },
+  )
+    .select("shipping")
+    .lean();
 
   res.status(200).json({ success: true, data: updated.shipping });
 });
@@ -711,7 +753,11 @@ export const updateShipping = asyncHandler(async (req, res) => {
 export const addOrderNote = asyncHandler(async (req, res) => {
   const order = await Order.findByIdAndUpdate(
     req.params.id,
-    { $push: { adminNotes: { text: req.body.text, by: req.user._id, at: new Date() } } },
+    {
+      $push: {
+        adminNotes: { text: req.body.text, by: req.user._id, at: new Date() },
+      },
+    },
     { new: true, runValidators: true },
   )
     .select("adminNotes")
@@ -738,13 +784,20 @@ export const markRefundDone = asyncHandler(async (req, res) => {
     },
     { new: true },
   )
-    .select("refund")
+    .select("refund orderNumber")
     .lean();
 
   if (!order) {
     res.status(404);
     throw new Error("سفارشی با عودت وجه در انتظار پیدا نشد");
   }
+  await logAudit(req, {
+    action: "order.refund",
+    entityType: "order",
+    entityId: order._id,
+    entityLabel: order.orderNumber,
+    summary: `عودت وجه سفارش ${order.orderNumber} ثبت شد`,
+  });
 
   res.status(200).json({ success: true, data: order.refund });
 });
@@ -759,6 +812,12 @@ export const bulkUpdateStatus = asyncHandler(async (req, res) => {
       $push: { statusHistory: historyEntry("processing", req.user._id) },
     },
   );
+  
+  await logAudit(req, {
+    action: "order.bulk-status",
+    entityType: "order",
+    summary: `${result.modifiedCount} سفارش به «در حال آماده‌سازی» رفت`,
+  });
 
   res.status(200).json({
     success: true,
@@ -776,11 +835,16 @@ export const exportOrders = asyncHandler(async (req, res) => {
   const total = await Order.countDocuments(filter);
   if (total > EXPORT_LIMIT) {
     res.status(400);
-    throw new Error(`تعداد سفارش‌ها (${total}) بیشتر از ${EXPORT_LIMIT} است؛ بازه یا فیلتر را محدودتر کنید`);
+    throw new Error(
+      `تعداد سفارش‌ها (${total}) بیشتر از ${EXPORT_LIMIT} است؛ بازه یا فیلتر را محدودتر کنید`,
+    );
   }
 
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename="orders-${toTehranDay(new Date())}.csv"`);
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="orders-${toTehranDay(new Date())}.csv"`,
+  );
 
   res.write("\uFEFF"); // تا Excel فارسی رو درست نشون بده
   res.write(
@@ -818,7 +882,11 @@ export const exportOrders = asyncHandler(async (req, res) => {
     .cursor();
 
   for await (const o of cursor) {
-    const refund = !o.refund?.required ? "" : o.refund.doneAt ? "انجام شد" : "در انتظار";
+    const refund = !o.refund?.required
+      ? ""
+      : o.refund.doneAt
+        ? "انجام شد"
+        : "در انتظار";
 
     res.write(
       csvRow([
@@ -839,7 +907,11 @@ export const exportOrders = asyncHandler(async (req, res) => {
         o.discountAmount,
         o.shippingCost,
         o.totalAmount,
-        o.discountSource === "coupon" ? "کد تخفیف" : o.discountSource === "loyalty" ? "وفاداری" : "",
+        o.discountSource === "coupon"
+          ? "کد تخفیف"
+          : o.discountSource === "loyalty"
+            ? "وفاداری"
+            : "",
         o.couponCode,
         o.payment?.refId,
         o.shipping?.carrier,

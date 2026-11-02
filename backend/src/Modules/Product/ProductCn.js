@@ -4,6 +4,16 @@ import escapeRegex from "../../Utils/escapeRegex.js";
 import { parsePagination } from "../../Utils/pagination.js";
 import Order from "../Order/OrderMd.js";
 import { getFileUrl, deleteUploadedFile } from "../../Utils/uploadService.js";
+import { getLowStockThreshold } from "../../Utils/settings.js";
+import { logAudit } from "../../Utils/audit.js";
+
+const PRODUCT_AUDIT_FIELDS = {
+  name: "نام",
+  isActive: "فعال بودن",
+  discountPercent: "درصد تخفیف",
+  discountStartDate: "شروع تخفیف",
+  discountEndDate: "پایان تخفیف",
+};
 
 const ADMIN_SORTS = {
   newest: { createdAt: -1, _id: -1 },
@@ -21,14 +31,10 @@ const isDiscountActiveNow = (p, now) =>
   (!p.discountEndDate || now <= p.discountEndDate);
 
 // فیلتر لیست ادمین (برخلاف لیست عمومی، محصول غیرفعال هم دیده می‌شه)
-const buildAdminFilter = ({
-  search,
-  category,
-  brand,
-  active,
-  stock,
-  discount,
-} = {}) => {
+const buildAdminFilter = (
+  { search, category, brand, active, stock, discount } = {},
+  threshold = 5,
+) => {
   const threshold = lowStockThreshold();
   const filter = {};
   const and = [];
@@ -102,6 +108,14 @@ export const createProduct = asyncHandler(async (req, res) => {
     discountStartDate: discountStartDate || null,
     discountEndDate: discountEndDate || null,
     isActive: parseBool(isActive, true),
+  });
+
+  await logAudit(req, {
+    action: "product.create",
+    entityType: "product",
+    entityId: product._id,
+    entityLabel: product.name,
+    summary: `محصول «${product.name}» ساخته شد`,
   });
 
   res.status(201).json({ success: true, data: product });
@@ -272,6 +286,17 @@ export const updateProduct = asyncHandler(async (req, res) => {
     isActive,
   } = req.body;
 
+  const beforeSnapshot = {
+    name: product.name,
+    isActive: product.isActive,
+    discountPercent: product.discountPercent,
+    discountStartDate: product.discountStartDate,
+    discountEndDate: product.discountEndDate,
+  };
+  const beforePrices = new Map(
+    product.variants.map((v) => [String(v._id), v.price]),
+  );
+
   if (name !== undefined) product.name = name;
   if (description !== undefined) product.description = description;
   if (brand !== undefined) product.brand = brand;
@@ -331,6 +356,29 @@ export const updateProduct = asyncHandler(async (req, res) => {
   }
 
   await product.save();
+  const changes = diffObjects(beforeSnapshot, product, PRODUCT_AUDIT_FIELDS);
+  for (const v of product.variants) {
+    const old = beforePrices.get(String(v._id));
+    if (old !== undefined && old !== v.price) {
+      changes.push({
+        field: `price:${v._id}`,
+        label: `قیمت (${v.attributes.map((a) => a.value).join("، ")})`,
+        from: old,
+        to: v.price,
+      });
+    }
+  }
+
+  await logAudit(req, {
+    action: "product.update",
+    entityType: "product",
+    entityId: product._id,
+    entityLabel: product.name,
+    summary: changes.length
+      ? `محصول «${product.name}» ویرایش شد: ${changes.map((c) => c.label).join("، ")}`
+      : `محصول «${product.name}» ذخیره شد`,
+    changes,
+  });
 
   res.status(200).json({ success: true, data: product });
 });
@@ -378,6 +426,12 @@ export const deleteProduct = asyncHandler(async (req, res) => {
 
   await product.deleteOne();
   await Promise.all(product.images.map((img) => deleteUploadedFile(img)));
+  await logAudit(req, {
+    action: "product.delete",
+    entityType: "product",
+    entityLabel: product.name,
+    summary: `محصول «${product.name}» حذف شد`,
+  });
 
   res.status(200).json({ success: true, message: "محصول حذف شد" });
 });
@@ -388,9 +442,9 @@ export const getAdminProducts = asyncHandler(async (req, res) => {
     defaultLimit: 20,
     maxLimit: 100,
   });
-  const filter = buildAdminFilter(req.query);
+  const threshold = await getLowStockThreshold();
+  const filter = buildAdminFilter(req.query, threshold);
   const sort = req.query.sort in ADMIN_SORTS ? req.query.sort : "newest";
-  const threshold = lowStockThreshold();
   const now = new Date();
 
   let query = Product.find(filter)
@@ -454,12 +508,13 @@ export const getAdminProducts = asyncHandler(async (req, res) => {
 
 // ---------- شمارنده‌ی تب‌ها ----------
 export const getAdminProductCounts = asyncHandler(async (req, res) => {
+  const threshold = await getLowStockThreshold();
   const [all, active, outOfStock, lowStock, discounted] = await Promise.all([
     Product.countDocuments(),
     Product.countDocuments({ isActive: true }),
-    Product.countDocuments(buildAdminFilter({ stock: "out" })),
-    Product.countDocuments(buildAdminFilter({ stock: "low" })),
-    Product.countDocuments(buildAdminFilter({ discount: "active" })),
+    Product.countDocuments(buildAdminFilter({ stock: "out" }, threshold)),
+    Product.countDocuments(buildAdminFilter({ stock: "low" }, threshold)),
+    Product.countDocuments(buildAdminFilter({ discount: "active" }, threshold)),
   ]);
 
   res.status(200).json({
@@ -525,7 +580,11 @@ export const bulkSetActive = asyncHandler(async (req, res) => {
     { _id: { $in: ids } },
     { $set: { isActive } },
   );
-
+  await logAudit(req, {
+    action: "product.bulk-active",
+    entityType: "product",
+    summary: `${result.modifiedCount} محصول ${isActive ? "فعال" : "غیرفعال"} شد`,
+  });
   res.status(200).json({
     success: true,
     data: {
@@ -546,7 +605,7 @@ export const updateVariantStock = asyncHandler(async (req, res) => {
     { _id: id, variants: { $elemMatch: { _id: variantId, stock: expected } } },
     { $set: { "variants.$.stock": stock } },
     { new: true },
-  ).select("variants");
+  ).select("variants name");
 
   if (!product) {
     const exists = await Product.exists({ _id: id, "variants._id": variantId });
@@ -557,6 +616,16 @@ export const updateVariantStock = asyncHandler(async (req, res) => {
         : "محصول یا واریانت پیدا نشد",
     );
   }
+
+  const variant = product.variants.id(variantId);
+  await logAudit(req, {
+    action: "product.stock",
+    entityType: "product",
+    entityId: product._id,
+    entityLabel: product.name,
+    summary: `موجودی «${product.name}» (${variant.attributes.map((a) => a.value).join("، ")}) از ${expected} به ${stock} تغییر کرد`,
+    changes: [{ field: "stock", label: "موجودی", from: expected, to: stock }],
+  });
 
   res.status(200).json({
     success: true,

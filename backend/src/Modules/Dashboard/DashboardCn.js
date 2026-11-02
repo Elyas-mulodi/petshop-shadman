@@ -11,6 +11,7 @@ import {
   pickGranularity,
   resolveRange,
 } from "../../Utils/dateRange.js";
+import { getLowStockThreshold } from "../../Utils/settings.js";
 
 // وضعیت‌هایی که فروش واقعی حساب می‌شن
 const REVENUE_STATUSES = ["paid", "processing", "shipped", "delivered"];
@@ -147,7 +148,7 @@ const stockSummary = async (threshold) => {
 export const getOverview = asyncHandler(async (req, res) => {
   const r = rangeOf(req);
   const now = new Date();
-  const threshold = lowStockThreshold();
+  const threshold = await getLowStockThreshold();
 
   const [
     cur,
@@ -237,12 +238,10 @@ export const getSales = asyncHandler(async (req, res) => {
     }),
   );
 
-  res
-    .status(200)
-    .json({
-      success: true,
-      data: { range: rangeInfo(r), granularity, points },
-    });
+  res.status(200).json({
+    success: true,
+    data: { range: rangeInfo(r), granularity, points },
+  });
 });
 
 // ---------- ۳) توزیع وضعیت سفارش‌ها (سفارش‌های ثبت‌شده در بازه) ----------
@@ -299,12 +298,10 @@ export const getTopProducts = asyncHandler(async (req, res) => {
     { $limit: limit },
   ]);
 
-  res
-    .status(200)
-    .json({
-      success: true,
-      data: { range: rangeInfo(r), metric: sortField, items },
-    });
+  res.status(200).json({
+    success: true,
+    data: { range: rangeInfo(r), metric: sortField, items },
+  });
 });
 
 // ---------- ۵) فروش به تفکیک دسته‌بندی و برند ----------
@@ -728,7 +725,7 @@ export const getGeo = asyncHandler(async (req, res) => {
 
 // ---------- ۱۱) موجودی ----------
 export const getInventory = asyncHandler(async (req, res) => {
-  const threshold = lowStockThreshold();
+  const threshold = await getLowStockThreshold();
 
   const [summary, items] = await Promise.all([
     stockSummary(threshold),

@@ -18,6 +18,8 @@ import cartRoutes from "./Modules/Cart/Cart.js";
 import orderRoutes from "./Modules/Order/Order.js";
 import userRoutes from "./Modules/User/User.js";
 import dashboardRoutes from "./Modules/Dashboard/Dashboard.js";
+import settingsRoutes from "./Modules/Settings/Settings.js";
+import auditLogRoutes from "./Modules/AuditLog/AuditLog.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.NODE_ENV === "development";
@@ -152,8 +154,10 @@ app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/settings", settingsRoutes);
+app.use("/api/audit-logs", auditLogRoutes);
 
-// ---------- Error Handlers (باید آخر از همه باشن) ----------
+// ---------- Error Handlers  ----------
 app.use(notFound);
 app.use(errorHandler);
 
