@@ -20,6 +20,9 @@ import {
   addProductImages,
   reorderProductImages,
   duplicateProduct,
+  getInventorySummary,
+  getInventoryList,
+  exportInventory,
 } from "./ProductCn.js";
 import {
   createProductSchema,
@@ -30,6 +33,7 @@ import {
   bulkActiveSchema,
   updateStockSchema,
   reorderImagesSchema,
+  getInventoryQuerySchema,
 } from "./ProductValidation.js";
 const router = express.Router();
 const upload = createUploader("products");
@@ -45,6 +49,9 @@ router.get("/admin/all", ...admin, validate(getAdminProductsQuerySchema, "query"
 router.get("/admin/counts", ...admin, getAdminProductCounts);
 router.get("/admin/attributes", ...admin, getAttributeSuggestions);
 router.patch("/admin/bulk-active", ...admin, validate(bulkActiveSchema), bulkSetActive);
+router.get("/admin/inventory", ...admin, validate(getInventoryQuerySchema, "query"), getInventoryList);
+router.get("/admin/inventory/summary", ...admin, getInventorySummary);
+router.get("/admin/inventory/export", ...admin, validate(getInventoryQuerySchema, "query"), exportInventory);
 router.get("/admin/:id", ...admin, getAdminProduct);
 router.post("/admin/:id/duplicate", ...admin, duplicateProduct);
 router.post("/admin/:id/images", ...admin, upload.array("images", 8), addProductImages);

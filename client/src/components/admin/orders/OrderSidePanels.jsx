@@ -1,13 +1,24 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, Copy, CreditCard, MapPin, StickyNote, Truck, User } from "lucide-react";
+import {
+  Check,
+  Copy,
+  CreditCard,
+  MapPin,
+  StickyNote,
+  Truck,
+  User,
+} from "lucide-react";
 import { Card } from "../../profile/ProfileParts";
 import Badge from "../ui/Badge";
 import Button from "../ui/Button";
 import { useToast } from "../ui/ToastProvider";
 import { Field } from "../../auth/AuthParts";
 import { TextAreaField } from "../../checkout/FormControls";
-import { useAddOrderNote, useUpdateShipping } from "../../../features/admin/orders/useAdminOrders";
+import {
+  useAddOrderNote,
+  useUpdateShipping,
+} from "../../../features/admin/orders/useAdminOrders";
 import { formatToman } from "../../../utils/price";
 import { formatDate, formatDateTime } from "../../../utils/formatDate";
 import { parseApiError, toPersianDigits } from "../../../utils/authHelpers";
@@ -39,12 +50,16 @@ export const CustomerCard = ({ user, stats }) => (
           <Row label="مجموع خرید">{formatToman(stats.spent)}</Row>
         </dl>
         <div className="mt-4 flex items-center justify-between border-t border-line pt-4">
-          {user.isBlocked ? <Badge tone="danger">حساب مسدود است</Badge> : <span />}
+          {user.isBlocked ? (
+            <Badge tone="danger">حساب مسدود است</Badge>
+          ) : (
+            <span />
+          )}
           <Link
-            to={`/admin/users?search=${encodeURIComponent(user.phone)}`}
+            to={`/admin/users/${user._id}`}
             className="text-xs text-bronze transition-opacity hover:opacity-80"
           >
-            مشاهده در کاربران
+            مشاهده‌ی پروفایل مشتری
           </Link>
         </div>
       </>
@@ -86,8 +101,15 @@ export const AddressCard = ({ address }) => {
       <p className="mt-3 text-sm leading-7 text-paper">
         {address.province}، {address.city}، {address.addressLine}
       </p>
-      <p className="mt-2 text-xs text-muted">کد پستی: {toPersianDigits(address.postalCode)}</p>
-      <Button size="sm" className="mt-4" icon={copied ? Check : Copy} onClick={copy}>
+      <p className="mt-2 text-xs text-muted">
+        کد پستی: {toPersianDigits(address.postalCode)}
+      </p>
+      <Button
+        size="sm"
+        className="mt-4"
+        icon={copied ? Check : Copy}
+        onClick={copy}
+      >
         {copied ? "کپی شد" : "کپی آدرس"}
       </Button>
     </Card>
@@ -106,7 +128,9 @@ export const PaymentCard = ({ order }) => (
         <Row label="کد پیگیری">
           <span dir="ltr">{order.payment.refId}</span>
         </Row>
-        {order.payment.paidAt && <Row label="زمان پرداخت">{formatDateTime(order.payment.paidAt)}</Row>}
+        {order.payment.paidAt && (
+          <Row label="زمان پرداخت">{formatDateTime(order.payment.paidAt)}</Row>
+        )}
       </dl>
     ) : (
       <p className="text-sm text-muted">این سفارش پرداخت نشده است.</p>
@@ -121,12 +145,15 @@ export const ShippingCard = ({ order }) => {
   const toast = useToast();
   const mutation = useUpdateShipping(order._id);
   const [carrier, setCarrier] = useState(order.shipping?.carrier ?? "");
-  const [trackingCode, setTrackingCode] = useState(order.shipping?.trackingCode ?? "");
+  const [trackingCode, setTrackingCode] = useState(
+    order.shipping?.trackingCode ?? "",
+  );
   const [error, setError] = useState("");
 
   const editable = SHIPPING_EDITABLE.includes(order.status);
   const changed =
-    carrier.trim() !== (order.shipping?.carrier ?? "") || trackingCode.trim() !== (order.shipping?.trackingCode ?? "");
+    carrier.trim() !== (order.shipping?.carrier ?? "") ||
+    trackingCode.trim() !== (order.shipping?.trackingCode ?? "");
 
   const save = (e) => {
     e.preventDefault();
@@ -144,23 +171,46 @@ export const ShippingCard = ({ order }) => {
     <Card icon={Truck} title="ارسال">
       {editable ? (
         <form onSubmit={save} noValidate>
-          <Field label="پیک یا شرکت حمل" list="carriers-edit" value={carrier} onChange={(e) => setCarrier(e.target.value)} maxLength={60} />
+          <Field
+            label="پیک یا شرکت حمل"
+            list="carriers-edit"
+            value={carrier}
+            onChange={(e) => setCarrier(e.target.value)}
+            maxLength={60}
+          />
           <datalist id="carriers-edit">
             <option value="پست پیشتاز" />
             <option value="تیپاکس" />
             <option value="چاپار" />
             <option value="پیک موتوری" />
           </datalist>
-          <Field label="کد رهگیری" dir="ltr" value={trackingCode} onChange={(e) => setTrackingCode(e.target.value)} maxLength={60} error={error} />
+          <Field
+            label="کد رهگیری"
+            dir="ltr"
+            value={trackingCode}
+            onChange={(e) => setTrackingCode(e.target.value)}
+            maxLength={60}
+            error={error}
+          />
           {order.shipping?.shippedAt && (
-            <p className="-mt-1 mb-4 text-xs text-muted">زمان ارسال: {formatDateTime(order.shipping.shippedAt)}</p>
+            <p className="-mt-1 mb-4 text-xs text-muted">
+              زمان ارسال: {formatDateTime(order.shipping.shippedAt)}
+            </p>
           )}
-          <Button type="submit" variant="secondary" loading={mutation.isPending} disabled={!changed} className="w-full">
+          <Button
+            type="submit"
+            variant="secondary"
+            loading={mutation.isPending}
+            disabled={!changed}
+            className="w-full"
+          >
             ذخیره
           </Button>
         </form>
       ) : (
-        <p className="text-sm text-muted">بعد از پرداخت سفارش، اطلاعات ارسال قابل ثبت است.</p>
+        <p className="text-sm text-muted">
+          بعد از پرداخت سفارش، اطلاعات ارسال قابل ثبت است.
+        </p>
       )}
     </Card>
   );
@@ -206,7 +256,13 @@ export const NotesCard = ({ order }) => {
           maxLength={1000}
           error={error}
         />
-        <Button type="submit" variant="secondary" loading={mutation.isPending} disabled={!text.trim()} className="w-full">
+        <Button
+          type="submit"
+          variant="secondary"
+          loading={mutation.isPending}
+          disabled={!text.trim()}
+          className="w-full"
+        >
           ثبت یادداشت
         </Button>
       </form>
@@ -215,9 +271,12 @@ export const NotesCard = ({ order }) => {
         <ul className="mt-5 space-y-3 border-t border-line pt-5">
           {notes.map((note) => (
             <li key={note._id} className="rounded-lg bg-ink px-3.5 py-3">
-              <p className="whitespace-pre-wrap text-sm leading-7 text-paper">{note.text}</p>
+              <p className="whitespace-pre-wrap text-sm leading-7 text-paper">
+                {note.text}
+              </p>
               <p className="mt-2 text-[11px] text-muted">
-                {note.by?.name || note.by?.phone || "ادمین"} ، {formatDateTime(note.at)}
+                {note.by?.name || note.by?.phone || "ادمین"} ،{" "}
+                {formatDateTime(note.at)}
               </p>
             </li>
           ))}

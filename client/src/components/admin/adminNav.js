@@ -31,7 +31,7 @@ export const ADMIN_NAV = [
       { to: "/admin/products", label: "محصولات", icon: Package, ready: true },
       { to: "/admin/categories", label: "دسته‌بندی‌ها", icon: FolderTree, ready: true },
       { to: "/admin/brands", label: "برندها", icon: Tag, ready: true },
-      { to: "/admin/inventory", label: "موجودی", icon: Warehouse, ready: false },
+      { to: "/admin/inventory", label: "موجودی", icon: Warehouse, ready: true },
     ],
   },
   {

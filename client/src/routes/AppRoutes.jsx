@@ -51,6 +51,10 @@ const AdminSettingsPage = lazy(
 const AdminActivityPage = lazy(
   () => import("../pages/admin/AdminActivityPage"),
 );
+const AdminUserDetailPage = lazy(
+  () => import("../pages/admin/AdminUserDetailPage"),
+);
+const AdminInventoryPage = lazy(() => import("../pages/admin/AdminInventoryPage"));
 
 const AdminNotFoundPage = lazy(
   () => import("../pages/admin/AdminNotFoundPage"),
@@ -99,6 +103,7 @@ const AppRoutes = () => {
           <Route path="orders" element={<AdminOrdersPage />} />
           <Route path="orders/:id" element={<AdminOrderDetailPage />} />
           <Route path="users" element={<AdminUsersPage />} />
+          <Route path="users/:id" element={<AdminUserDetailPage />} />
           <Route path="products" element={<AdminProductsPage />} />
           <Route path="products/new" element={<AdminProductFormPage />} />
           <Route path="products/:id" element={<AdminProductFormPage />} />
@@ -108,6 +113,7 @@ const AppRoutes = () => {
           <Route path="loyalty" element={<AdminLoyaltyPage />} />
           <Route path="settings" element={<AdminSettingsPage />} />
           <Route path="activity" element={<AdminActivityPage />} />
+          <Route path="inventory" element={<AdminInventoryPage />} />
           <Route path="*" element={<AdminNotFoundPage />} />
         </Route>
 

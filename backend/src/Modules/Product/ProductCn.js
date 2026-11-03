@@ -6,6 +6,9 @@ import Order from "../Order/OrderMd.js";
 import { getFileUrl, deleteUploadedFile } from "../../Utils/uploadService.js";
 import { getLowStockThreshold } from "../../Utils/settings.js";
 import { logAudit } from "../../Utils/audit.js";
+import mongoose from "mongoose";
+import { csvRow } from "../../Utils/csv.js";
+import { toTehranDay } from "../../Utils/dateRange.js";
 
 const PRODUCT_AUDIT_FIELDS = {
   name: "نام",
@@ -40,11 +43,7 @@ const buildAdminFilter = (
 
   if (search) {
     const rx = new RegExp(escapeRegex(search), "i");
-    filter.$or = [
-      { name: rx },
-      { slug: rx },
-      { "variants.sku": rx },
-    ];
+    filter.$or = [{ name: rx }, { slug: rx }, { "variants.sku": rx }];
   }
 
   if (category) filter.categories = category;
@@ -97,10 +96,7 @@ const buildAdminFilter = (
         ],
       },
       {
-        $or: [
-          { discountEndDate: null },
-          { discountEndDate: { $gte: now } },
-        ],
+        $or: [{ discountEndDate: null }, { discountEndDate: { $gte: now } }],
       },
     );
   }
@@ -759,4 +755,241 @@ export const duplicateProduct = asyncHandler(async (req, res) => {
   res
     .status(201)
     .json({ success: true, data: { _id: copy._id, slug: copy.slug } });
+});
+
+// ---------- موجودی انبار: هر واریانت یک ردیف ----------
+const INVENTORY_SORTS = {
+  stockAsc: { "variants.stock": 1, "variants._id": 1 },
+  stockDesc: { "variants.stock": -1, "variants._id": 1 },
+  valueDesc: { value: -1, "variants._id": 1 },
+  nameAsc: { name: 1, "variants._id": 1 },
+};
+
+const INVENTORY_EXPORT_LIMIT = 5000;
+
+// ارزش فقط برای موجودی مثبت حساب می‌شه (به قیمت فروش، قبل از تخفیف محصول)
+const VALUE_EXPR = {
+  $cond: [
+    { $gt: ["$variants.stock", 0] },
+    { $multiply: ["$variants.price", "$variants.stock"] },
+    0,
+  ],
+};
+
+// aggregate مقدارها رو cast نمی‌کنه، پس شناسه‌ها باید ObjectId باشن
+const buildInventoryStages = (
+  { search, status, active, category, brand } = {},
+  threshold,
+) => {
+  const productMatch = {};
+  if (active) productMatch.isActive = active === "true";
+  if (category) productMatch.categories = new mongoose.Types.ObjectId(category);
+  if (brand) productMatch.brand = new mongoose.Types.ObjectId(brand);
+
+  const variantMatch = {};
+  if (status === "out") variantMatch["variants.stock"] = { $lte: 0 };
+  if (status === "low")
+    variantMatch["variants.stock"] = { $gt: 0, $lte: threshold };
+  if (status === "ok") variantMatch["variants.stock"] = { $gt: threshold };
+  if (status === "negative") variantMatch["variants.stock"] = { $lt: 0 };
+
+  if (search) {
+    const rx = new RegExp(escapeRegex(search), "i");
+    variantMatch.$or = [{ name: rx }, { "variants.sku": rx }];
+  }
+
+  return [
+    ...(Object.keys(productMatch).length ? [{ $match: productMatch }] : []),
+    { $unwind: "$variants" },
+    ...(Object.keys(variantMatch).length ? [{ $match: variantMatch }] : []),
+    { $addFields: { value: VALUE_EXPR } },
+  ];
+};
+
+const stockStatusText = (stock, threshold) =>
+  stock < 0
+    ? "منفی"
+    : stock === 0
+      ? "ناموجود"
+      : stock <= threshold
+        ? "کم‌موجودی"
+        : "موجود";
+
+export const getInventoryList = asyncHandler(async (req, res) => {
+  const { page, limit, skip } = parsePagination(req.query, {
+    defaultLimit: 30,
+    maxLimit: 100,
+  });
+  const threshold = await getLowStockThreshold();
+  const sort = req.query.sort in INVENTORY_SORTS ? req.query.sort : "stockAsc";
+
+  const aggregation = Product.aggregate([
+    ...buildInventoryStages(req.query, threshold),
+    {
+      $facet: {
+        rows: [
+          { $sort: INVENTORY_SORTS[sort] },
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              _id: 0,
+              productId: "$_id",
+              name: 1,
+              slug: 1,
+              image: { $arrayElemAt: ["$images", 0] },
+              isActive: 1,
+              variantId: "$variants._id",
+              attributes: "$variants.attributes",
+              sku: "$variants.sku",
+              price: "$variants.price",
+              stock: "$variants.stock",
+              value: 1,
+            },
+          },
+        ],
+        total: [{ $count: "count" }],
+      },
+    },
+  ]);
+
+  if (sort === "nameAsc") aggregation.collation({ locale: "fa", strength: 2 });
+
+  const [result] = await aggregation;
+  const total = result.total[0]?.count ?? 0;
+
+  res.status(200).json({
+    success: true,
+    data: result.rows,
+    pagination: { total, page, pages: Math.ceil(total / limit) },
+    threshold,
+  });
+});
+
+// ---------- خلاصه‌ی کل انبار (مستقل از فیلترها) ----------
+export const getInventorySummary = asyncHandler(async (req, res) => {
+  const threshold = await getLowStockThreshold();
+
+  const [row, stockIssueOrders] = await Promise.all([
+    Product.aggregate([
+      { $unwind: "$variants" },
+      {
+        $group: {
+          _id: null,
+          variants: { $sum: 1 },
+          units: { $sum: { $max: ["$variants.stock", 0] } },
+          value: { $sum: VALUE_EXPR },
+          out: { $sum: { $cond: [{ $lte: ["$variants.stock", 0] }, 1, 0] } },
+          low: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $gt: ["$variants.stock", 0] },
+                    { $lte: ["$variants.stock", threshold] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          negative: {
+            $sum: { $cond: [{ $lt: ["$variants.stock", 0] }, 1, 0] },
+          },
+        },
+      },
+    ]).then((rows) => rows[0]),
+    Order.countDocuments({
+      stockIssue: true,
+      status: { $in: ["paid", "processing"] },
+    }),
+  ]);
+
+  const s = row ?? {
+    variants: 0,
+    units: 0,
+    value: 0,
+    out: 0,
+    low: 0,
+    negative: 0,
+  };
+
+  res.status(200).json({
+    success: true,
+    data: {
+      threshold,
+      variants: s.variants,
+      units: s.units,
+      value: s.value,
+      out: s.out,
+      low: s.low,
+      negative: s.negative,
+      ok: s.variants - s.out - s.low,
+      stockIssueOrders,
+    },
+  });
+});
+
+// ---------- خروجی CSV برای انبارگردانی (با رعایت فیلترها) ----------
+export const exportInventory = asyncHandler(async (req, res) => {
+  const threshold = await getLowStockThreshold();
+  const stages = buildInventoryStages(req.query, threshold);
+
+  const [counted] = await Product.aggregate([...stages, { $count: "count" }]);
+  const total = counted?.count ?? 0;
+
+  if (total > INVENTORY_EXPORT_LIMIT) {
+    res.status(400);
+    throw new Error(
+      `تعداد ردیف‌ها (${total}) بیشتر از ${INVENTORY_EXPORT_LIMIT} است؛ فیلتر را محدودتر کنید`,
+    );
+  }
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="inventory-${toTehranDay(new Date())}.csv"`,
+  );
+
+  res.write("\uFEFF"); // تا Excel فارسی رو درست نشون بده
+  res.write(
+    csvRow([
+      "محصول",
+      "ویژگی‌ها",
+      "SKU",
+      "قیمت فروش (تومان)",
+      "موجودی سیستم",
+      "ارزش موجودی (تومان)",
+      "وضعیت موجودی",
+      "وضعیت محصول",
+      "موجودی شمارش‌شده",
+    ]),
+  );
+
+  const cursor = Product.aggregate([
+    ...stages,
+    { $sort: { name: 1, "variants._id": 1 } },
+  ])
+    .collation({ locale: "fa", strength: 2 })
+    .cursor();
+
+  for await (const row of cursor) {
+    const v = row.variants;
+    res.write(
+      csvRow([
+        row.name,
+        v.attributes.map((a) => `${a.name}: ${a.value}`).join("، "),
+        v.sku,
+        v.price,
+        v.stock,
+        row.value,
+        stockStatusText(v.stock, threshold),
+        row.isActive ? "فعال" : "غیرفعال",
+        "", 
+      ]),
+    );
+  }
+
+  res.end();
 });

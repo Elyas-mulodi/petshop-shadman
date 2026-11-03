@@ -1,7 +1,25 @@
 import asyncHandler from "express-async-handler";
 import User from "./UserMd.js";
+import Order from "../Order/OrderMd.js";
+import Coupon from "../Coupon/CouponMd.js";
 import escapeRegex from "../../Utils/escapeRegex.js";
 import { parsePagination } from "../../Utils/pagination.js";
+import { logAudit } from "../../Utils/audit.js";
+
+const REVENUE_STATUSES = ["paid", "processing", "shipped", "delivered"];
+const USER_SORTS = {
+  newest: { createdAt: -1, _id: -1 },
+  oldest: { createdAt: 1, _id: 1 },
+  nameAsc: { name: 1, _id: 1 },
+};
+
+// تعریف وضعیت‌ها: فعال = تاییدشده و غیرمسدود
+const statusFilter = (status) => {
+  if (status === "active") return { isVerified: true, isBlocked: false };
+  if (status === "blocked") return { isBlocked: true };
+  if (status === "unverified") return { isVerified: false };
+  return {};
+};
 
 // ---------- دریافت پروفایل کاربر لاگین‌کرده ----------
 export const getProfile = asyncHandler(async (req, res) => {

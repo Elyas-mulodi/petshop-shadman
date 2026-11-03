@@ -1,4 +1,3 @@
-
 import { Link } from "react-router-dom";
 import { AlertTriangle } from "lucide-react";
 
@@ -77,9 +76,7 @@ export const KpiGrid = ({ query }) => {
             label={card.label}
             loading={query.isLoading}
             value={
-              card.metric?.value != null
-                ? formatNumber(card.metric.value)
-                : "—"
+              card.metric?.value != null ? formatNumber(card.metric.value) : "—"
             }
             unit={card.money ? "تومان" : undefined}
             delta={card.metric?.delta}
@@ -97,9 +94,9 @@ export const KpiGrid = ({ query }) => {
 
           <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
             <p className="flex-1 leading-7 text-paper">
-              {formatNumber(refunds.count)} سفارش پرداخت‌شده در این بازه
-              لغو یا مرجوع شده (مجموع {formatToman(refunds.amount)}).
-              عودت وجه این سفارش‌ها باید به‌صورت دستی از پنل درگاه انجام شود.
+              {formatNumber(refunds.count)} سفارش پرداخت‌شده در این بازه لغو یا
+              مرجوع شده (مجموع {formatToman(refunds.amount)}). عودت وجه این
+              سفارش‌ها باید به‌صورت دستی از پنل درگاه انجام شود.
             </p>
 
             <Link
@@ -200,20 +197,16 @@ export const LiveStrip = ({ query }) => {
         label="کم‌موجودی"
         value={live.lowStock}
         tone="attention"
-        to="/admin/products?filter=lowStock"
+        to="/admin/inventory?status=low"
       />
-
       <Tile
         label="ناموجود"
         value={live.outOfStock}
         tone="alert"
-        to="/admin/products?filter=outOfStock"
+        to="/admin/inventory?status=out"
       />
 
-      <Tile
-        label="کل کاربران"
-        value={live.totalUsers}
-      />
+      <Tile label="کل کاربران" value={live.totalUsers} />
     </div>
   );
 };
@@ -232,7 +225,9 @@ export const LowStockCard = () => {
           : undefined
       }
       query={query}
-      isEmpty={!query.isLoading && !query.isError && (!d || d.items.length === 0)}
+      isEmpty={
+        !query.isLoading && !query.isError && (!d || d.items.length === 0)
+      }
       emptyText="موجودی همه‌ی کالاها کافی است."
       height={200}
     >
@@ -243,9 +238,7 @@ export const LowStockCard = () => {
             className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
           >
             <div className="min-w-0">
-              <p className="truncate text-sm text-paper">
-                {item.name}
-              </p>
+              <p className="truncate text-sm text-paper">{item.name}</p>
 
               <p className="mt-0.5 truncate text-xs text-muted">
                 {(item.attributes ?? [])
@@ -257,13 +250,17 @@ export const LowStockCard = () => {
             {item.stock <= 0 ? (
               <Badge tone="danger">ناموجود</Badge>
             ) : (
-              <Badge tone="warning">
-                {formatNumber(item.stock)} عدد
-              </Badge>
+              <Badge tone="warning">{formatNumber(item.stock)} عدد</Badge>
             )}
           </li>
         ))}
       </ul>
+      <Link
+        to="/admin/inventory?status=low"
+        className="mt-4 inline-block text-xs text-bronze hover:opacity-80"
+      >
+        مشاهده‌ی همه‌ی موجودی‌ها
+      </Link>
     </Panel>
   );
 };
@@ -277,11 +274,7 @@ export const RecentOrdersCard = () => {
     <Panel
       title="آخرین سفارش‌ها"
       query={query}
-      isEmpty={
-        !query.isLoading &&
-        !query.isError &&
-        orders.length === 0
-      }
+      isEmpty={!query.isLoading && !query.isError && orders.length === 0}
       emptyText="هنوز سفارشی ثبت نشده است."
       height={200}
     >
