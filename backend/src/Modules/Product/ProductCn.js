@@ -30,34 +30,64 @@ const isDiscountActiveNow = (p, now) =>
   (!p.discountStartDate || now >= p.discountStartDate) &&
   (!p.discountEndDate || now <= p.discountEndDate);
 
-// فیلتر لیست ادمین (برخلاف لیست عمومی، محصول غیرفعال هم دیده می‌شه)
+// فیلتر لیست ادمین
 const buildAdminFilter = (
   { search, category, brand, active, stock, discount } = {},
   threshold = 5,
 ) => {
-  const threshold = lowStockThreshold();
   const filter = {};
   const and = [];
 
   if (search) {
     const rx = new RegExp(escapeRegex(search), "i");
-    filter.$or = [{ name: rx }, { slug: rx }, { "variants.sku": rx }];
+    filter.$or = [
+      { name: rx },
+      { slug: rx },
+      { "variants.sku": rx },
+    ];
   }
+
   if (category) filter.categories = category;
   if (brand) filter.brand = brand;
   if (active) filter.isActive = active === "true";
 
-  if (stock === "out")
-    and.push({ variants: { $not: { $elemMatch: { stock: { $gt: 0 } } } } });
-  if (stock === "low")
+  // محصولات ناموجود
+  if (stock === "out") {
     and.push({
-      variants: { $elemMatch: { stock: { $gt: 0, $lte: threshold } } },
+      variants: {
+        $not: {
+          $elemMatch: { stock: { $gt: 0 } },
+        },
+      },
     });
-  if (stock === "in")
-    and.push({ variants: { $elemMatch: { stock: { $gt: threshold } } } });
+  }
 
+  // محصولات با موجودی کم
+  if (stock === "low") {
+    and.push({
+      variants: {
+        $elemMatch: {
+          stock: { $gt: 0, $lte: threshold },
+        },
+      },
+    });
+  }
+
+  // محصولات موجود
+  if (stock === "in") {
+    and.push({
+      variants: {
+        $elemMatch: {
+          stock: { $gt: threshold },
+        },
+      },
+    });
+  }
+
+  // محصولات دارای تخفیف فعال
   if (discount === "active") {
     const now = new Date();
+
     and.push(
       { discountPercent: { $gt: 0 } },
       {
@@ -66,14 +96,29 @@ const buildAdminFilter = (
           { discountStartDate: { $lte: now } },
         ],
       },
-      { $or: [{ discountEndDate: null }, { discountEndDate: { $gte: now } }] },
+      {
+        $or: [
+          { discountEndDate: null },
+          { discountEndDate: { $gte: now } },
+        ],
+      },
     );
   }
-  if (discount === "none") and.push({ discountPercent: { $not: { $gt: 0 } } });
 
-  if (and.length) filter.$and = and;
+  // محصولات بدون تخفیف
+  if (discount === "none") {
+    and.push({
+      discountPercent: { $not: { $gt: 0 } },
+    });
+  }
+
+  if (and.length > 0) {
+    filter.$and = and;
+  }
+
   return filter;
 };
+
 const MAX_IMAGES = 8;
 
 const parseBool = (value, fallback) =>

@@ -1,8 +1,10 @@
 import {
   FolderTree,
   Gift,
+  History,
   LayoutDashboard,
   Package,
+  Settings,
   ShoppingCart,
   Tag,
   Ticket,
@@ -36,4 +38,11 @@ export const ADMIN_NAV = [
     title: "مشتریان",
     items: [{ to: "/admin/users", label: "کاربران", icon: Users, ready: true }],
   },
+  {
+  title: "سیستم",
+  items: [
+    { to: "/admin/settings", label: "تنظیمات", icon: Settings, ready: true },
+    { to: "/admin/activity", label: "لاگ فعالیت", icon: History, ready: true },
+  ],
+},
 ];

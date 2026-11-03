@@ -1,6 +1,12 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
+const adminNoteSchema = new mongoose.Schema({
+  text: { type: String, required: true, trim: true, maxlength: 1000 },
+  by: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  at: { type: Date, default: Date.now },
+});
+
 const userSchema = new mongoose.Schema(
   {
     phone: {
@@ -36,6 +42,15 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    blockedAt: { type: Date, default: null },
+    blockedReason: {
+      type: String,
+      trim: true,
+      maxlength: 300,
+      default: null,
+      select: false,
+    },
+    adminNotes: { type: [adminNoteSchema], default: [], select: false },
     otpCode: {
       type: String,
       select: false,

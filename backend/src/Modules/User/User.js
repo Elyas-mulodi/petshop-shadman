@@ -6,15 +6,24 @@ import {
   updateProfile,
   changePassword,
   getAllUsers,
+  getUserCounts,
+  getTopCustomers,
+  getAdminUser,
   toggleBlockUser,
+  addUserNote,
 } from "./UserCn.js";
-import { updateProfileSchema, changePasswordSchema } from "./UserValidation.js";
+import {
+  updateProfileSchema,
+  changePasswordSchema,
+  getAdminUsersQuerySchema,
+  blockUserSchema,
+  addUserNoteSchema,
+} from "./UserValidation.js";
 
 const router = express.Router();
+const admin = [protect, authorize("admin")];
 
 router.get("/profile", protect, getProfile);
-router.get("/admin/all", protect, authorize("admin"), getAllUsers);
-
 router.put("/profile", protect, validate(updateProfileSchema), updateProfile);
 router.put(
   "/change-password",
@@ -22,11 +31,28 @@ router.put(
   validate(changePasswordSchema),
   changePassword,
 );
+
+// ---------- ادمین (مسیرهای ثابت قبل از /admin/:id) ----------
+router.get(
+  "/admin/all",
+  ...admin,
+  validate(getAdminUsersQuerySchema, "query"),
+  getAllUsers,
+);
+router.get("/admin/counts", ...admin, getUserCounts);
+router.get("/admin/top", ...admin, getTopCustomers);
+router.get("/admin/:id", ...admin, getAdminUser);
 router.patch(
   "/admin/:id/toggle-block",
-  protect,
-  authorize("admin"),
+  ...admin,
+  validate(blockUserSchema),
   toggleBlockUser,
+);
+router.post(
+  "/admin/:id/notes",
+  ...admin,
+  validate(addUserNoteSchema),
+  addUserNote,
 );
 
 export default router;

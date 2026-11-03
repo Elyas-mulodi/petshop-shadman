@@ -45,6 +45,13 @@ const AdminCategoriesPage = lazy(
 const AdminBrandsPage = lazy(() => import("../pages/admin/AdminBrandsPage"));
 const AdminCouponsPage = lazy(() => import("../pages/admin/AdminCouponsPage"));
 const AdminLoyaltyPage = lazy(() => import("../pages/admin/AdminLoyaltyPage"));
+const AdminSettingsPage = lazy(
+  () => import("../pages/admin/AdminSettingsPage"),
+);
+const AdminActivityPage = lazy(
+  () => import("../pages/admin/AdminActivityPage"),
+);
+
 const AdminNotFoundPage = lazy(
   () => import("../pages/admin/AdminNotFoundPage"),
 );
@@ -99,6 +106,8 @@ const AppRoutes = () => {
           <Route path="brands" element={<AdminBrandsPage />} />
           <Route path="coupons" element={<AdminCouponsPage />} />
           <Route path="loyalty" element={<AdminLoyaltyPage />} />
+          <Route path="settings" element={<AdminSettingsPage />} />
+          <Route path="activity" element={<AdminActivityPage />} />
           <Route path="*" element={<AdminNotFoundPage />} />
         </Route>
 
