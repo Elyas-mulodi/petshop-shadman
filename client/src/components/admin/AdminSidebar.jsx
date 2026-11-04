@@ -1,11 +1,5 @@
-
 import { Link, NavLink } from "react-router-dom";
-import {
-  ChevronsLeft,
-  ChevronsRight,
-  Store,
-  X,
-} from "lucide-react";
+import { ChevronsLeft, ChevronsRight, Store, X } from "lucide-react";
 
 import Logo from "../common/Logo";
 import { ADMIN_NAV } from "./adminNav";
@@ -24,9 +18,7 @@ const AdminSidebar = ({
       {/* Header */}
       <div
         className={`flex h-[60px] shrink-0 items-center border-b border-line/70 ${
-          collapsed
-            ? "justify-center px-2"
-            : "justify-between px-4"
+          collapsed ? "justify-center px-2" : "justify-between px-4"
         }`}
       >
         {!collapsed && (
@@ -43,9 +35,7 @@ const AdminSidebar = ({
               <span className="text-sm font-semibold leading-none text-paper">
                 پنل مدیریت
               </span>
-              <span className="text-[10px] text-muted">
-                مدیریت فروشگاه
-              </span>
+              <span className="text-[10px] text-muted">مدیریت فروشگاه</span>
             </div>
           </Link>
         )}
@@ -64,11 +54,7 @@ const AdminSidebar = ({
             <button
               type="button"
               onClick={onToggleCollapse}
-              aria-label={
-                collapsed
-                  ? "باز کردن سایدبار"
-                  : "جمع کردن سایدبار"
-              }
+              aria-label={collapsed ? "باز کردن سایدبار" : "جمع کردن سایدبار"}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-well hover:text-paper"
             >
               {collapsed ? (
@@ -84,7 +70,7 @@ const AdminSidebar = ({
       {/* Navigation */}
       <nav
         aria-label="منوی مدیریت"
-        className="admin-sidebar-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-4"
+        className="admin-sidebar-scroll min-h-0 flex-1 space-y-6 overflow-y-auto px-2 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <div className="space-y-5">
           {ADMIN_NAV.map((group, groupIndex) => (
@@ -106,9 +92,7 @@ const AdminSidebar = ({
                       <li key={item.to}>
                         <div
                           title={
-                            collapsed
-                              ? `${item.label} - به‌زودی`
-                              : undefined
+                            collapsed ? `${item.label} - به‌زودی` : undefined
                           }
                           aria-disabled="true"
                           className={`${itemBase} cursor-not-allowed text-muted/40 ${
@@ -145,9 +129,7 @@ const AdminSidebar = ({
                         title={collapsed ? item.label : undefined}
                         className={({ isActive }) =>
                           `${itemBase} ${
-                            collapsed
-                              ? "justify-center px-0"
-                              : ""
+                            collapsed ? "justify-center px-0" : ""
                           } ${
                             isActive
                               ? "bg-well text-paper shadow-sm"
@@ -198,15 +180,9 @@ const AdminSidebar = ({
             collapsed ? "justify-center px-0" : ""
           }`}
         >
-          <Store
-            size={18}
-            strokeWidth={1.7}
-            className="shrink-0"
-          />
+          <Store size={18} strokeWidth={1.7} className="shrink-0" />
 
-          {!collapsed && (
-            <span className="flex-1">مشاهده سایت</span>
-          )}
+          {!collapsed && <span className="flex-1">مشاهده سایت</span>}
         </Link>
       </div>
 

@@ -55,26 +55,30 @@ const assertValidOtp = async (user, otp, res) => {
 export const sendRegisterOtp = asyncHandler(async (req, res) => {
   const { phone } = req.body;
 
-  let user = await User.findOne({ phone });
+  // ساخت اتمیک: دو درخواست هم‌زمان با یک شماره نمی‌تونن دو حساب بسازن
+  let user;
+  try {
+    user = await User.findOneAndUpdate(
+      { phone },
+      { $setOnInsert: { isVerified: false } },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+  } catch (err) {
+    if (err.code !== 11000) throw err;
+    user = await User.findOne({ phone });
+  }
 
-  if (user && user.isVerified) {
+  if (user.isVerified) {
     res.status(400);
     throw new Error("این شماره قبلاً ثبت‌نام کرده است");
   }
 
-  const otpCode = generateOtp();
-  const otpExpires = new Date(Date.now() + OTP_EXPIRE_MINUTES * 60 * 1000);
-
-  if (!user) {
-    user = new User({ phone });
-  }
-
-  user.otpCode = otpCode;
-  user.otpExpires = otpExpires;
+  user.otpCode = generateOtp();
+  user.otpExpires = new Date(Date.now() + OTP_EXPIRE_MINUTES * 60 * 1000);
   user.otpAttempts = 0;
   await user.save({ validateBeforeSave: false });
 
-  await sendSms(phone, `کد تایید پت شاپ شادمان: ${otpCode}`);
+  await sendSms(phone, `کد تایید پت شاپ شادمان: ${user.otpCode}`);
 
   res.status(200).json({ success: true, message: "کد تایید ارسال شد" });
 });

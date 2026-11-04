@@ -184,7 +184,7 @@ const AdminCategoriesPage = () => {
                 </div>
 
                 <span className="hidden text-xs text-muted sm:inline">
-                  {toPersianDigits(node.productCount)} محصول
+                  {toPersianDigits(node.productCount ?? 0)} محصول
                 </span>
 
                 <Switch

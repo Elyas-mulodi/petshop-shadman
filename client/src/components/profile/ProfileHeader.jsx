@@ -58,6 +58,14 @@ const ProfileHeader = ({ user, stats, statsLoading, onEdit }) => {
                 عضو از {formatDate(user.createdAt)}
               </p>
             )}
+            {!user?.name && (
+              <button
+                onClick={onEdit}
+                className="mt-2 text-xs text-bronze transition-opacity hover:opacity-80"
+              >
+                نام خود را تکمیل کنید
+              </button>
+            )}
           </div>
 
           <button

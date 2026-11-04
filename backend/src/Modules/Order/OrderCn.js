@@ -167,7 +167,10 @@ export const createOrder = asyncHandler(async (req, res) => {
     totalAmount,
     statusHistory: [historyEntry("pending_payment")],
   });
-
+  await User.updateOne(
+    { _id: req.user._id, $or: [{ name: null }, { name: "" }] },
+    { $set: { name: shippingAddress.fullName.slice(0, 50) } },
+  );
   // ---------- شروع پرداخت با زرین‌پال ----------
   const payment = await requestPayment({
     amountToman: totalAmount,
@@ -204,60 +207,64 @@ export const verifyOrderPayment = asyncHandler(async (req, res) => {
   const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
   const resultUrl = `${clientUrl}/checkout/result`;
 
+  const finish = (status, order) =>
+    res.redirect(
+      `${resultUrl}?status=${status}${order ? `&order=${order.orderNumber}` : ""}`,
+    );
+
   if (!Authority || typeof Authority !== "string") {
-    return res.redirect(`${resultUrl}?status=not-found`);
+    console.warn("verify: Authority نامعتبر");
+    return finish("not-found");
   }
 
   const order = await Order.findOne({ "payment.authority": Authority });
 
   if (!order) {
-    return res.redirect(`${resultUrl}?status=not-found`);
+    console.warn(`verify: سفارشی با این Authority پیدا نشد (${Authority})`);
+    return finish("not-found");
   }
 
-  const orderQuery = `order=${order.orderNumber}`;
-
   if (!PAYABLE_STATUSES.includes(order.status)) {
-    return res.redirect(`${resultUrl}?status=already-processed&${orderQuery}`);
+    console.info(
+      `verify: سفارش ${order.orderNumber} قبلاً پردازش شده (وضعیت: ${order.status})`,
+    );
+    return finish("already-processed", order);
   }
 
   if (Status !== "OK") {
-    return res.redirect(`${resultUrl}?status=failed&${orderQuery}`);
+    console.info(
+      `verify: پرداخت سفارش ${order.orderNumber} ناموفق یا لغو شد (Status=${Status})`,
+    );
+    return finish("failed", order);
   }
 
-  // ---------- قفل: فقط یک درخواست هم‌زمان اجازه‌ی تایید پرداخت داره ----------
-  const now = new Date();
-  const locked = await Order.findOneAndUpdate(
-    { _id: order._id, status: "pending_payment", $or: lockIsFree(now) },
-    { $set: { "payment.verifyLockUntil": new Date(now.getTime() + LOCK_MS) } },
-    { new: true },
-  );
-
-  if (!locked) {
-    return res.redirect(`${resultUrl}?status=already-processed&${orderQuery}`);
+  // تایید دوباره‌ی همین تراکنش بی‌خطره (کد ۱۰۱ هم موفق حساب می‌شه)، پس قفل لازم نیست
+  let verifyResult;
+  try {
+    verifyResult = await verifyPayment({
+      authority: Authority,
+      amountToman: order.totalAmount,
+    });
+  } catch (err) {
+    console.error(`verify: خطای غیرمنتظره در تایید ${order.orderNumber}:`, err);
+    return finish("failed", order);
   }
-
-  const verifyResult = await verifyPayment({
-    authority: Authority,
-    amountToman: locked.totalAmount,
-  });
 
   if (!verifyResult.success) {
-    await Order.updateOne(
-      { _id: locked._id },
-      { $set: { "payment.verifyLockUntil": null } },
+    console.error(
+      `verify: درگاه پرداخت سفارش ${order.orderNumber} را تایید نکرد: ${verifyResult.error}`,
     );
-    return res.redirect(`${resultUrl}?status=failed&${orderQuery}`);
+    return finish("failed", order);
   }
 
-  // ---------- انتقال اتمیک به paid ----------
+  // انتقال اتمیک به paid؛ اگه دو درخواست هم‌زمان بیان فقط یکی برنده می‌شه
   const paid = await Order.findOneAndUpdate(
-    { _id: order._id, status: { $in: PAYABLE_STATUSES }, $or: lockIsFree(now) },
+    { _id: order._id, status: { $in: PAYABLE_STATUSES } },
     {
       $set: {
         status: "paid",
         "payment.refId": verifyResult.refId,
         "payment.paidAt": new Date(),
-        "payment.verifyLockUntil": null,
       },
       $push: { statusHistory: historyEntry("paid") },
     },
@@ -265,35 +272,56 @@ export const verifyOrderPayment = asyncHandler(async (req, res) => {
   );
 
   if (!paid) {
+    const current = await Order.findById(order._id).select("status");
+
+    // درخواست هم‌زمان دیگه‌ای همین پرداخت رو ثبت کرده
+    if (current && REVENUE_STATUSES.includes(current.status))
+      return finish("already-processed", order);
+
+    // پول گرفته شده ولی سفارش دیگه قابل پرداخت نیست (مثلاً در همین فاصله لغو شده): برای عودت وجه ثبت می‌شه
+    await Order.updateOne(
+      { _id: order._id, "payment.refId": null },
+      {
+        $set: {
+          "payment.refId": verifyResult.refId,
+          "payment.paidAt": new Date(),
+          "refund.required": true,
+        },
+      },
+    );
     console.error(
-      `⚠️ Payment verified but order not pending: ${locked.orderNumber} (refId ${verifyResult.refId})`,
+      `verify: پرداخت ${verifyResult.refId} برای سفارش ${order.orderNumber} با وضعیت «${current?.status}» رسید؛ نیاز به عودت وجه`,
     );
-    return res.redirect(`${resultUrl}?status=already-processed&${orderQuery}`);
+    return finish("failed", order);
   }
 
-  // ---------- کسر موجودی: اگه کم بیاد منفی می‌شه و سفارش پرچم می‌خوره ----------
+  // از اینجا به بعد پول گرفته شده؛ هیچ خطایی نباید مانع رسیدن مشتری به صفحه‌ی موفقیت بشه
   let oversold = false;
-
-  for (const item of paid.items) {
-    const updated = await Product.findOneAndUpdate(
-      { _id: locked._id, status: { $in: PAYABLE_STATUSES } },
-      { $inc: { "variants.$.stock": -item.quantity } },
-      { new: true },
+  try {
+    for (const item of paid.items) {
+      const updated = await Product.findOneAndUpdate(
+        { _id: item.product, "variants._id": item.variantId },
+        { $inc: { "variants.$.stock": -item.quantity } },
+        { new: true },
+      );
+      const variant = updated?.variants.id(item.variantId);
+      if (!variant || variant.stock < 0) oversold = true;
+    }
+    await Order.updateOne(
+      { _id: paid._id },
+      { $set: { stockDeducted: true, stockIssue: oversold } },
     );
-    const variant = updated?.variants.id(item.variantId);
-    if (!variant || variant.stock < 0) oversold = true;
+  } catch (err) {
+    console.error(
+      `verify: خطا در کم‌کردن موجودی سفارش ${paid.orderNumber}:`,
+      err,
+    );
+    await Order.updateOne(
+      { _id: paid._id },
+      { $set: { stockIssue: true } },
+    ).catch(() => {});
   }
 
-  await Order.updateOne(
-    { _id: paid._id },
-    { $set: { stockDeducted: true, stockIssue: oversold } },
-  );
-
-  if (oversold) {
-    console.error(`⚠️ Oversold items in order ${paid.orderNumber}`);
-  }
-
-  // ---------- کارهای بعد از پرداخت: خطای هر کدوم، پرداخت موفق رو باطل نمی‌کنه ----------
   const safe = async (label, task) => {
     try {
       await task();
@@ -337,7 +365,7 @@ export const verifyOrderPayment = asyncHandler(async (req, res) => {
     );
   }
 
-  return res.redirect(`${resultUrl}?status=success&${orderQuery}`);
+  return finish("success", paid);
 });
 
 // ---------- سفارش‌های کاربر ----------
@@ -812,7 +840,7 @@ export const bulkUpdateStatus = asyncHandler(async (req, res) => {
       $push: { statusHistory: historyEntry("processing", req.user._id) },
     },
   );
-  
+
   await logAudit(req, {
     action: "order.bulk-status",
     entityType: "order",

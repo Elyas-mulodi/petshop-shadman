@@ -11,7 +11,9 @@
     "migrate:indexes": "node src/migrations/syncUserIndexes.js",
     "migrate:products": "node src/migrations/backfillProductMinPrice.js",
     "migrate:orders": "node src/migrations/syncOrderIndexes.js",
-    "migrate:categories": "node src/migrations/backfillCategorySortOrder.js"
+    "migrate:categories": "node src/migrations/backfillCategorySortOrder.js",
+    "migrate:dedupe-users": "node src/migrations/dedupeUsers.js",
+    "migrate:user-names": "node src/migrations/backfillUserNames.js"
   },
   "keywords": [],
   "author": "",
