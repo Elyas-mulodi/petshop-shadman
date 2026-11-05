@@ -17,7 +17,7 @@ const passwordField = z
 const otpField = z
   .string(requiredMsg("کد تایید"))
   .trim()
-  .length(4, "کد تایید باید ۴ رقمی باشد")
+  .length(6, "کد تایید باید 6 رقمی باشد")
   .regex(digitsOnlyRegex, "کد تایید باید فقط شامل عدد باشد");
 
 export const sendOtpSchema = z.object({

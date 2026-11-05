@@ -53,7 +53,7 @@ const OtpStep = ({ phone, onVerify, onResend, onEditPhone, onError }) => {
         title="کد تایید"
         hint={
           <>
-            کد ۴ رقمی ارسال‌شده به <span dir="ltr">{phone}</span> را وارد کنید
+            کد 6 رقمی ارسال‌شده به <span dir="ltr">{phone}</span> را وارد کنید
           </>
         }
       />
@@ -61,7 +61,7 @@ const OtpStep = ({ phone, onVerify, onResend, onEditPhone, onError }) => {
       <OtpInput
         key={resetKey}
         disabled={loading}
-        onChange={(code) => code.length === 4 && verify(code)}
+        onChange={(code) => code.length === 6 && verify(code)}
       />
 
       <div className="mt-5">

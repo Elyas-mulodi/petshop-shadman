@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { normalizeDigits } from "../../utils/authHelpers";
 
-const LENGTH = 4;
+const LENGTH = 6;
 
 const OtpInput = ({ onChange, disabled }) => {
   const [digits, setDigits] = useState(Array(LENGTH).fill(""));
@@ -17,11 +17,36 @@ const OtpInput = ({ onChange, disabled }) => {
   };
 
   const handleChange = (index, e) => {
-    const digit = normalizeDigits(e.target.value).replace(/\D/g, "").slice(-1);
+    const value = normalizeDigits(e.target.value).replace(/\D/g, "");
+
+    if (!value) {
+      const next = [...digits];
+      next[index] = "";
+      update(next);
+      return;
+    }
+
+    // پشتیبانی از وارد کردن چند رقم و Autofill
+    if (value.length > 1) {
+      const pasted = value.slice(0, LENGTH);
+      const next = Array(LENGTH).fill("");
+
+      for (let i = 0; i < pasted.length; i++) {
+        next[i] = pasted[i];
+      }
+
+      update(next);
+      refs.current[Math.min(pasted.length, LENGTH - 1)]?.focus();
+      return;
+    }
+
     const next = [...digits];
-    next[index] = digit;
+    next[index] = value;
     update(next);
-    if (digit && index < LENGTH - 1) refs.current[index + 1]?.focus();
+
+    if (index < LENGTH - 1) {
+      refs.current[index + 1]?.focus();
+    }
   };
 
   const handleKeyDown = (index, e) => {
@@ -54,10 +79,11 @@ const OtpInput = ({ onChange, disabled }) => {
           onFocus={(e) => e.target.select()}
           inputMode="numeric"
           autoComplete={i === 0 ? "one-time-code" : "off"}
-          maxLength={2}
+          maxLength={1}
           disabled={disabled}
           aria-label={`رقم ${i + 1} کد تایید`}
-          className="h-12 w-11 rounded-lg border border-line bg-ink text-center text-lg font-medium text-paper transition-colors focus:border-bronze focus:outline-none disabled:opacity-60"        />
+          className="h-12 w-11 rounded-lg border border-line bg-ink text-center text-lg font-medium text-paper transition-colors focus:border-bronze focus:outline-none disabled:opacity-60"
+        />
       ))}
     </div>
   );

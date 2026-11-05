@@ -1,8 +1,9 @@
 import asyncHandler from "express-async-handler";
 import jwt from "jsonwebtoken";
 import User from "../User/UserMd.js";
-import generateOtp from "../../Utils/generateOtp.js";
-import sendSms from "../../Utils/sendSms.js";
+
+import { requestLimoOtp, verifyLimoOtp } from "../../Utils/limoOtpService.js";
+
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -10,8 +11,8 @@ import {
   clearRefreshTokenCookie,
 } from "../../Utils/generateToken.js";
 
-const OTP_EXPIRE_MINUTES = 2;
 const TEMP_TOKEN_EXPIRE = "5m";
+const OTP_EXPIRE_MINUTES = 2;
 
 const MAX_OTP_ATTEMPTS = 5;
 
@@ -55,16 +56,30 @@ const assertValidOtp = async (user, otp, res) => {
 export const sendRegisterOtp = asyncHandler(async (req, res) => {
   const { phone } = req.body;
 
-  // ساخت اتمیک: دو درخواست هم‌زمان با یک شماره نمی‌تونن دو حساب بسازن
+  if (!phone) {
+    res.status(400);
+    throw new Error("شماره موبایل الزامی است");
+  }
+
   let user;
+
   try {
     user = await User.findOneAndUpdate(
       { phone },
-      { $setOnInsert: { isVerified: false } },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
+      {
+        $setOnInsert: {
+          isVerified: false,
+        },
+      },
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+      },
     );
   } catch (err) {
     if (err.code !== 11000) throw err;
+
     user = await User.findOne({ phone });
   }
 
@@ -73,47 +88,53 @@ export const sendRegisterOtp = asyncHandler(async (req, res) => {
     throw new Error("این شماره قبلاً ثبت‌نام کرده است");
   }
 
-  user.otpCode = generateOtp();
-  user.otpExpires = new Date(Date.now() + OTP_EXPIRE_MINUTES * 60 * 1000);
-  user.otpAttempts = 0;
-  await user.save({ validateBeforeSave: false });
+  // ارسال OTP و تولید کد توسط LimoSMS
+  await requestLimoOtp(phone);
 
-  await sendSms(phone, `کد تایید پت شاپ شادمان: ${user.otpCode}`);
-
-  res.status(200).json({ success: true, message: "کد تایید ارسال شد" });
+  res.status(200).json({
+    success: true,
+    message: "کد تایید ارسال شد",
+  });
 });
 
 // ---------- ثبت‌نام: مرحله ۲ - تایید OTP ----------
 export const verifyRegisterOtp = asyncHandler(async (req, res) => {
   const { phone, otp } = req.body;
 
-  const user = await User.findOne({ phone }).select(
-    "+otpCode +otpExpires +otpAttempts",
-  );
-
-  if (!user || !user.otpCode) {
+  if (!phone || !otp) {
     res.status(400);
-    throw new Error("درخواستی برای این شماره یافت نشد");
+    throw new Error("شماره موبایل و کد تایید الزامی هستند");
   }
 
-  if (user.otpExpires < new Date()) {
+  const user = await User.findOne({ phone });
+
+  if (!user) {
     res.status(400);
-    throw new Error("کد تایید منقضی شده است");
+    throw new Error("ابتدا درخواست ثبت‌نام کنید");
   }
 
-  if (user.otpCode !== otp) {
+  if (user.isVerified) {
     res.status(400);
-    throw new Error("کد تایید نادرست است");
+    throw new Error("این شماره قبلاً تایید شده است");
   }
 
-  user.otpCode = undefined;
-  user.otpExpires = undefined;
-  await user.save({ validateBeforeSave: false });
+  // بررسی OTP توسط خود LimoSMS
+  const isValid = await verifyLimoOtp(phone, otp);
+
+  if (!isValid) {
+    res.status(400);
+    throw new Error("کد تایید نادرست یا منقضی شده است");
+  }
 
   const registrationToken = jwt.sign(
-    { phone, purpose: "register" },
+    {
+      phone,
+      purpose: "register",
+    },
     process.env.JWT_ACCESS_SECRET,
-    { expiresIn: TEMP_TOKEN_EXPIRE },
+    {
+      expiresIn: TEMP_TOKEN_EXPIRE,
+    },
   );
 
   res.status(200).json({
@@ -242,60 +263,71 @@ export const logout = asyncHandler(async (req, res) => {
 export const sendForgotPasswordOtp = asyncHandler(async (req, res) => {
   const { phone } = req.body;
 
-  const user = await User.findOne({ phone, isVerified: true });
+  if (!phone) {
+    res.status(400);
+    throw new Error("شماره موبایل الزامی است");
+  }
+
+  const user = await User.findOne({
+    phone,
+    isVerified: true,
+  });
 
   if (!user) {
     res.status(404);
     throw new Error("کاربری با این شماره یافت نشد");
   }
 
-  const otpCode = generateOtp();
-  const otpExpires = new Date(Date.now() + OTP_EXPIRE_MINUTES * 60 * 1000);
+  await requestLimoOtp(phone);
 
-  user.otpCode = otpCode;
-  user.otpExpires = otpExpires;
-  await user.save({ validateBeforeSave: false });
-
-  await sendSms(phone, `کد بازیابی رمز عبور پت شاپ شادمان: ${otpCode}`);
-
-  res.status(200).json({ success: true, message: "کد تایید ارسال شد" });
+  res.status(200).json({
+    success: true,
+    message: "کد بازیابی رمز عبور ارسال شد",
+  });
 });
 
 // ---------- فراموشی رمز عبور: مرحله ۲ - تایید OTP ----------
 export const verifyForgotPasswordOtp = asyncHandler(async (req, res) => {
   const { phone, otp } = req.body;
 
-  const user = await User.findOne({ phone }).select(
-    "+otpCode +otpExpires +otpAttempts",
-  );
-
-  if (!user || !user.otpCode) {
+  if (!phone || !otp) {
     res.status(400);
-    throw new Error("درخواستی برای این شماره یافت نشد");
+    throw new Error("شماره موبایل و کد تایید الزامی هستند");
   }
 
-  if (user.otpExpires < new Date()) {
-    res.status(400);
-    throw new Error("کد تایید منقضی شده است");
+  const user = await User.findOne({
+    phone,
+    isVerified: true,
+  });
+
+  if (!user) {
+    res.status(404);
+    throw new Error("کاربر یافت نشد");
   }
 
-  if (user.otpCode !== otp) {
-    res.status(400);
-    throw new Error("کد تایید نادرست است");
-  }
+  const isValid = await verifyLimoOtp(phone, otp);
 
-  user.otpCode = undefined;
-  user.otpExpires = undefined;
-  user.otpAttempts = 0;
-  await user.save({ validateBeforeSave: false });
+  if (!isValid) {
+    res.status(400);
+    throw new Error("کد تایید نادرست یا منقضی شده است");
+  }
 
   const resetToken = jwt.sign(
-    { phone, purpose: "reset" },
+    {
+      phone,
+      purpose: "reset",
+    },
     process.env.JWT_ACCESS_SECRET,
-    { expiresIn: TEMP_TOKEN_EXPIRE },
+    {
+      expiresIn: TEMP_TOKEN_EXPIRE,
+    },
   );
 
-  res.status(200).json({ success: true, resetToken });
+  res.status(200).json({
+    success: true,
+    message: "کد تایید شد",
+    resetToken,
+  });
 });
 
 // ---------- فراموشی رمز عبور: مرحله ۳ - تنظیم رمز جدید ----------
