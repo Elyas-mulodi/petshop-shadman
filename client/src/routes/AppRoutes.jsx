@@ -4,6 +4,8 @@ import MainLayout from "../layouts/MainLayout";
 import ProtectedRoute from "./ProtectedRoute";
 import PageFallback from "../components/common/PageFallback";
 import HomePage from "../pages/shop/HomePage";
+import AdminBannersPage from "../pages/admin/AdminBannersPage";
+import AdminBannerFormPage from "../pages/admin/AdminBannerFormPage";
 
 const LoginPage = lazy(() => import("../pages/shop/LoginPage"));
 const RegisterPage = lazy(() => import("../pages/shop/RegisterPage"));
@@ -54,7 +56,9 @@ const AdminActivityPage = lazy(
 const AdminUserDetailPage = lazy(
   () => import("../pages/admin/AdminUserDetailPage"),
 );
-const AdminInventoryPage = lazy(() => import("../pages/admin/AdminInventoryPage"));
+const AdminInventoryPage = lazy(
+  () => import("../pages/admin/AdminInventoryPage"),
+);
 
 const AdminNotFoundPage = lazy(
   () => import("../pages/admin/AdminNotFoundPage"),
@@ -114,6 +118,9 @@ const AppRoutes = () => {
           <Route path="settings" element={<AdminSettingsPage />} />
           <Route path="activity" element={<AdminActivityPage />} />
           <Route path="inventory" element={<AdminInventoryPage />} />
+          <Route path="/admin/banners" element={<AdminBannersPage />} />
+          <Route path="/admin/banners/new" element={<AdminBannerFormPage />} />
+          <Route path="/admin/banners/:id" element={<AdminBannerFormPage />} />
           <Route path="*" element={<AdminNotFoundPage />} />
         </Route>
 

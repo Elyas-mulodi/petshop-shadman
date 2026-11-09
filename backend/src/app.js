@@ -20,6 +20,8 @@ import userRoutes from "./Modules/User/User.js";
 import dashboardRoutes from "./Modules/Dashboard/Dashboard.js";
 import settingsRoutes from "./Modules/Settings/Settings.js";
 import auditLogRoutes from "./Modules/AuditLog/AuditLog.js";
+import bannerRouter from "./Modules/Banner/Banner.js";
+
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.NODE_ENV === "development";
@@ -156,6 +158,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/audit-logs", auditLogRoutes);
+app.use("/api/banners", bannerRouter);
 
 // ---------- Error Handlers  ----------
 app.use(notFound);

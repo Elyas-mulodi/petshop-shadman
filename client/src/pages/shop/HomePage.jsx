@@ -11,6 +11,8 @@ import { CarouselGrid, CarouselItem } from "../../components/common/CarouselGrid
 import useCategoryTree from "../../features/categories/useCategoryTree";
 import { getNewProducts, getDiscountedProducts } from "../../features/products/productsApi";
 import { getImageUrl } from "../../utils/imageUrl";
+import HomeHero from "../../components/home/PromoSection";
+import PromoSection from "../../components/home/PromoSection";
 
 const ease = [0.22, 1, 0.36, 1];
 
@@ -198,6 +200,7 @@ const HomePage = () => {
           </CarouselGrid>
         )}
       </Section>
+      <PromoSection/>
     </div>
   );
 };

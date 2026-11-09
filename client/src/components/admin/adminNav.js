@@ -2,6 +2,7 @@ import {
   FolderTree,
   Gift,
   History,
+  Images,
   LayoutDashboard,
   Package,
   Settings,
@@ -41,6 +42,7 @@ export const ADMIN_NAV = [
   {
   title: "سیستم",
   items: [
+    { to: "/admin/banners", label: "بنرها", icon: Images, ready: true },
     { to: "/admin/settings", label: "تنظیمات", icon: Settings, ready: true },
     { to: "/admin/activity", label: "لاگ فعالیت", icon: History, ready: true },
   ],
