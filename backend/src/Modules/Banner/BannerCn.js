@@ -1,12 +1,40 @@
 import asyncHandler from "express-async-handler";
 import { logAudit } from "../../Utils/audit.js";
 import Banner from "./BannerMd.js";
+import { getFileUrl, deleteUploadedFile } from "../../Utils/uploadService.js";
 
 // خطای ثبت لاگ نباید مانع جواب API بشه
 const audit = (req, data) =>
-  Promise.resolve(logAudit(req, data)).catch((err) => console.error("banner audit failed:", err.message));
+  Promise.resolve(logAudit(req, data)).catch((err) =>
+    console.error("banner audit failed:", err.message),
+  );
 
 // ---------- عمومی (فروشگاه) ----------
+
+// فایل فقط وقتی پاک می‌شه که بنر دیگه‌ای ازش استفاده نکنه
+const releaseImage = async (url, exceptId) => {
+  if (!url) return;
+  const stillUsed = await Banner.exists({
+    image: url,
+    ...(exceptId && { _id: { $ne: exceptId } }),
+  });
+  if (!stillUsed) await deleteUploadedFile(url);
+};
+
+// ---------- آپلود تصویر بنر ----------
+export const uploadImage = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    res.status(400);
+    throw new Error("فایل تصویر ارسال نشد");
+  }
+
+  res
+    .status(201)
+    .json({
+      success: true,
+      data: { url: getFileUrl("banners", req.file.filename) },
+    });
+});
 // GET /banners?slot=main → فقط بنرهای فعال و داخل بازه‌ی زمان‌بندی
 export const list = asyncHandler(async (req, res) => {
   const now = new Date();
@@ -29,7 +57,11 @@ export const list = asyncHandler(async (req, res) => {
 
 // ---------- ادمین ----------
 export const adminList = asyncHandler(async (req, res) => {
-  const banners = await Banner.find().sort({ slot: 1, order: 1, createdAt: -1 });
+  const banners = await Banner.find().sort({
+    slot: 1,
+    order: 1,
+    createdAt: -1,
+  });
   res.status(200).json({ success: true, data: banners });
 });
 
@@ -53,7 +85,9 @@ export const create = asyncHandler(async (req, res) => {
     summary: `بنر «${banner.title}» ساخته شد`,
   });
 
-  res.status(201).json({ success: true, message: "بنر ایجاد شد", data: banner });
+  res
+    .status(201)
+    .json({ success: true, message: "بنر ایجاد شد", data: banner });
 });
 
 export const update = asyncHandler(async (req, res) => {
@@ -63,9 +97,12 @@ export const update = asyncHandler(async (req, res) => {
     throw new Error("بنر یافت نشد");
   }
 
+  const oldImage = banner.image;
+
   banner.set(req.body);
   await banner.save();
-  // TODO: اگه توی این پروژه helper حذف فایل آپلود داری، تصویر قدیمی (اگه عوض شده و جای دیگه‌ای استفاده نمیشه) رو اینجا پاک کن
+
+  if (oldImage && oldImage !== banner.image) await releaseImage(oldImage, banner._id);
 
   await audit(req, {
     action: "banner.update",
@@ -86,7 +123,7 @@ export const remove = asyncHandler(async (req, res) => {
   }
 
   await banner.deleteOne();
-  // TODO: حذف فایل تصویر از دیسک (مثل بالا)
+  await releaseImage(banner.image);
 
   await audit(req, {
     action: "banner.delete",

@@ -37,7 +37,6 @@ const useProductList = (fetcher, errorMessage) => {
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadKey]);
 
   const retry = useCallback(() => setReloadKey((k) => k + 1), []);

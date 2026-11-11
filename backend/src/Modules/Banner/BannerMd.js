@@ -54,6 +54,11 @@ const bannerSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: true },
     startsAt: { type: Date, default: null },
     endsAt: { type: Date, default: null },
+    icon: {
+      type: String,
+      enum: { values: [...BANNER_ICONS, null], message: "آیکون نامعتبر است" },
+      default: null,
+    },
   },
   { timestamps: true },
 );
