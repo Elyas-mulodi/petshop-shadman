@@ -9,16 +9,29 @@ const audit = (req, data) =>
     console.error("banner audit failed:", err.message),
   );
 
-// ---------- عمومی (فروشگاه) ----------
+const findBannerOrFail = async (req, res) => {
+  const banner = await Banner.findById(req.params.id);
+  if (!banner) {
+    res.status(404);
+    throw new Error("بنر یافت نشد");
+  }
+  return banner;
+};
 
-// فایل فقط وقتی پاک می‌شه که بنر دیگه‌ای ازش استفاده نکنه
-const releaseImage = async (url, exceptId) => {
-  if (!url) return;
-  const stillUsed = await Banner.exists({
-    image: url,
-    ...(exceptId && { _id: { $ne: exceptId } }),
-  });
-  if (!stillUsed) await deleteUploadedFile(url);
+// فایل فقط وقتی پاک می‌شه که هیچ بنر دیگه‌ای (چه به‌عنوان image چه imageMobile) ازش استفاده نکنه.
+// خطای پاک‌کردن فایل نباید باعث خطای ۵۰۰ بشه، چون بنر قبلاً با موفقیت ذخیره شده.
+const releaseImages = async (urls, exceptId) => {
+  for (const url of new Set(urls.filter(Boolean))) {
+    try {
+      const stillUsed = await Banner.exists({
+        $or: [{ image: url }, { imageMobile: url }],
+        ...(exceptId && { _id: { $ne: exceptId } }),
+      });
+      if (!stillUsed) await deleteUploadedFile(url);
+    } catch (err) {
+      console.error("banner image cleanup failed:", err.message);
+    }
+  }
 };
 
 // ---------- آپلود تصویر بنر ----------
@@ -28,13 +41,14 @@ export const uploadImage = asyncHandler(async (req, res) => {
     throw new Error("فایل تصویر ارسال نشد");
   }
 
-  res
-    .status(201)
-    .json({
-      success: true,
-      data: { url: getFileUrl("banners", req.file.filename) },
-    });
+  res.status(201).json({
+    success: true,
+    data: { url: getFileUrl("banners", req.file.filename) },
+  });
 });
+
+// ---------- عمومی (فروشگاه) ----------
+
 // GET /banners?slot=main → فقط بنرهای فعال و داخل بازه‌ی زمان‌بندی
 export const list = asyncHandler(async (req, res) => {
   const now = new Date();
@@ -66,11 +80,7 @@ export const adminList = asyncHandler(async (req, res) => {
 });
 
 export const adminGetById = asyncHandler(async (req, res) => {
-  const banner = await Banner.findById(req.params.id);
-  if (!banner) {
-    res.status(404);
-    throw new Error("بنر یافت نشد");
-  }
+  const banner = await findBannerOrFail(req, res);
   res.status(200).json({ success: true, data: banner });
 });
 
@@ -91,18 +101,18 @@ export const create = asyncHandler(async (req, res) => {
 });
 
 export const update = asyncHandler(async (req, res) => {
-  const banner = await Banner.findById(req.params.id);
-  if (!banner) {
-    res.status(404);
-    throw new Error("بنر یافت نشد");
-  }
+  const banner = await findBannerOrFail(req, res);
 
-  const oldImage = banner.image;
+  const previous = [banner.image, banner.imageMobile];
 
   banner.set(req.body);
   await banner.save();
 
-  if (oldImage && oldImage !== banner.image) await releaseImage(oldImage, banner._id);
+  // هر عکسی که دیگه توی این بنر نیست (عوض شده یا حذف شده) آزاد میشه
+  const dropped = previous.filter(
+    (url) => url && url !== banner.image && url !== banner.imageMobile,
+  );
+  await releaseImages(dropped, banner._id);
 
   await audit(req, {
     action: "banner.update",
@@ -112,18 +122,16 @@ export const update = asyncHandler(async (req, res) => {
     summary: `بنر «${banner.title}» ویرایش شد`,
   });
 
-  res.status(200).json({ success: true, message: "بنر بروزرسانی شد", data: banner });
+  res
+    .status(200)
+    .json({ success: true, message: "بنر بروزرسانی شد", data: banner });
 });
 
 export const remove = asyncHandler(async (req, res) => {
-  const banner = await Banner.findById(req.params.id);
-  if (!banner) {
-    res.status(404);
-    throw new Error("بنر یافت نشد");
-  }
+  const banner = await findBannerOrFail(req, res);
 
   await banner.deleteOne();
-  await releaseImage(banner.image);
+  await releaseImages([banner.image, banner.imageMobile]);
 
   await audit(req, {
     action: "banner.delete",

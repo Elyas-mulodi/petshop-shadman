@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "../../../utils/axiosInstance";
+import { invalidateBanners } from "../../banners/useBanners";
 
 export const useAdminBanners = () =>
   useQuery({
@@ -20,7 +21,14 @@ const useBannerMutation = (request) => {
   return useMutation({
     mutationFn: request,
     onSuccess: () => {
-      ["banners", "audit"].forEach((scope) => queryClient.invalidateQueries({ queryKey: ["admin", scope] }));
+      // هر کوئری‌ای که "banners" یا "audit" توی کلیدش باشه تازه میشه:
+      // لیست و جزئیات پنل ادمین + بنرهای عمومی سایت (useBanners) + لاگ‌ها.
+      // قبلاً کش بنرهای سایت تازه نمی‌شد و تغییرات پنل توی سایت دیر یا اصلاً دیده نمی‌شد.
+      queryClient.invalidateQueries({
+        predicate: ({ queryKey }) => queryKey.some((part) => part === "banners" || part === "audit"),
+      });
+      // کش بنرهای سایت React Query نیست و جدا باطل میشه
+      invalidateBanners();
     },
   });
 };

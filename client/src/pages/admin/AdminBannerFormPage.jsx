@@ -1,95 +1,181 @@
 import { useMemo, useRef, useState } from "react";
+
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+
 import {
   CalendarClock,
   Image as ImageIcon,
+  Layers,
   LayoutTemplate,
   Sparkles,
   Type,
 } from "lucide-react";
+
 import PageHeader from "../../components/admin/ui/PageHeader";
+
 import ConfirmDialog from "../../components/admin/ui/ConfirmDialog";
+
 import Button from "../../components/admin/ui/Button";
+
 import { useToast } from "../../components/admin/ui/ToastProvider";
+
 import { Card } from "../../components/profile/ProfileParts";
+
 import { Field } from "../../components/auth/AuthParts";
+
 import { TextAreaField } from "../../components/checkout/FormControls";
+
 import ActiveSwitch from "../../components/admin/banners/ActiveSwitch";
+
 import BannerImageField from "../../components/admin/banners/BannerImageField";
+
 import BannerTilePreview from "../../components/admin/banners/BannerTilePreview";
+
 import {
+  ALL_IMAGE_SLOTS,
+  EYEBROW_SLOTS,
   IMAGE_SLOTS,
+  SECTION_KEYS,
   SLOTS,
   SLOT_HINTS,
   SLOT_LABELS,
+  TEXT_SLOTS,
   emptyForm,
   formFromBanner,
   payloadFromForm,
   validateBanner,
-  TEXT_SLOTS,
 } from "../../components/admin/banners/bannerUtils";
+
 import {
   useAdminBanner,
   useCreateBanner,
   useUpdateBanner,
 } from "../../features/admin/banners/useAdminBanners";
+
 import { BANNER_ICON_LABELS, BANNER_ICON_MAP } from "../../utils/bannerIcons";
+
 import { parseApiError, toPersianDigits } from "../../utils/authHelpers";
+import BannerPreviewPanel from "../../components/admin/banners/BannerPreviewPanel";
 
 const dateInput =
   "w-full rounded-lg border border-line bg-card px-3 py-2.5 text-sm text-paper [color-scheme:dark] focus:border-bronze focus:outline-none";
 
 // نسبت ابعاد هر تایل توی هیرو، برای پیش‌نمایش
+
 const PREVIEW_ASPECT = {
   main: "aspect-[4/3]",
+
   tall: "aspect-[2/3]",
+
   square: "aspect-[4/3]",
+
   info: "aspect-[4/3]",
+
   promo: "aspect-[16/10]",
+
+  section: "aspect-[16/7]",
 };
+
+const TITLE_LABEL = {
+  main: "تیتر",
+
+  promo: "تیتر",
+
+  section: "عنوان بخش",
+
+  info: "متن تایل",
+
+  tall: "برچسب روی تایل",
+
+  square: "برچسب روی تایل",
+};
+
+const LINK_LABEL = {
+  main: "لینک دکمه",
+
+  promo: "لینک دکمه",
+
+  section: "لینک «مشاهده همه» (اختیاری)",
+
+  info: "لینک (اختیاری)",
+
+  tall: "لینک تایل",
+
+  square: "لینک تایل",
+};
+
 const BannerForm = ({ banner, defaultSlot }) => {
   const navigate = useNavigate();
+
   const toast = useToast();
+
   const create = useCreateBanner();
+
   const update = useUpdateBanner();
+
   const isEdit = Boolean(banner);
 
   const [form, setForm] = useState(() =>
     banner ? formFromBanner(banner) : emptyForm(defaultSlot),
   );
+
   const initialJson = useRef(JSON.stringify(form));
+
   const [submitted, setSubmitted] = useState(false);
-  const [uploading, setUploading] = useState(false);
+
+  const [uploads, setUploads] = useState(0);
+
   const [confirmLeave, setConfirmLeave] = useState(false);
 
   const errors = useMemo(
     () => (submitted ? validateBanner(form) : {}),
     [form, submitted],
   );
+
   const dirty = JSON.stringify(form) !== initialJson.current;
+
   const saving = create.isPending || update.isPending;
+
+  const uploading = uploads > 0;
+
   const { slot } = form;
-  const imageSlot = IMAGE_SLOTS.includes(slot);
+
+  const textSlot = TEXT_SLOTS.includes(slot);
+
+  const eyebrowSlot = EYEBROW_SLOTS.includes(slot);
+
+  const imageSlot = ALL_IMAGE_SLOTS.includes(slot);
+
+  const imageRequired = IMAGE_SLOTS.includes(slot);
 
   const patch = (changes) => setForm((f) => ({ ...f, ...changes }));
+
+  const busy = (isBusy) =>
+    setUploads((n) => Math.max(0, n + (isBusy ? 1 : -1)));
+
   const back = () =>
     dirty ? setConfirmLeave(true) : navigate("/admin/banners");
 
   const submit = (e) => {
     e.preventDefault();
+
     setSubmitted(true);
 
     if (Object.keys(validateBanner(form)).length > 0) {
       toast.error("لطفاً خطاهای فرم را اصلاح کنید");
+
       return;
     }
 
     const body = payloadFromForm(form);
+
     const options = {
       onSuccess: () => {
         toast.success(isEdit ? "بنر بروزرسانی شد" : "بنر ساخته شد");
+
         navigate("/admin/banners");
       },
+
       onError: (err) => toast.error(parseApiError(err).message),
     };
 
@@ -99,15 +185,28 @@ const BannerForm = ({ banner, defaultSlot }) => {
 
   const preview = {
     slot,
+
     eyebrow: form.eyebrow,
+
     title: form.title,
+
     subtitle: form.subtitle,
+
     ctaText: form.ctaText,
-    image: form.image,
-    focalPoint: { x: form.focalX, y: form.focalY },
-    overlay: Number(form.overlay),
-    icon: form.icon,
+
+    ctaLink: form.ctaLink,
+
     badge: form.badge,
+
+    image: form.image,
+
+    focalPoint: { x: form.focalX, y: form.focalY },
+
+    overlay: Number(form.overlay),
+
+    icon: form.icon,
+
+    imageMobile: form.imageMobile,
   };
 
   return (
@@ -120,6 +219,7 @@ const BannerForm = ({ banner, defaultSlot }) => {
             <Button variant="secondary" size="sm" onClick={back}>
               انصراف
             </Button>
+
             <Button
               type="submit"
               form="banner-form"
@@ -142,8 +242,9 @@ const BannerForm = ({ banner, defaultSlot }) => {
       >
         <div className="space-y-6">
           {/* انتخاب تایل */}
-          <Card icon={LayoutTemplate} title="تایل" hint={SLOT_HINTS[slot]}>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+
+          <Card icon={LayoutTemplate} title="نوع بنر" hint={SLOT_HINTS[slot]}>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {SLOTS.map((s) => (
                 <button
                   key={s}
@@ -162,9 +263,42 @@ const BannerForm = ({ banner, defaultSlot }) => {
             </div>
           </Card>
 
+          {/* انتخاب بخش صفحه */}
+
+          {slot === "section" && (
+            <Card
+              icon={Layers}
+              title="بخش صفحه"
+              hint="این عنوان و عکس روی کدام بخش از صفحه‌ی اصلی اعمال شود. هر بخش بنر جداگانه‌ی خودش را دارد."
+            >
+              <div className="grid gap-2 sm:grid-cols-2">
+                {SECTION_KEYS.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={form.sectionKey === key}
+                    onClick={() => patch({ sectionKey: key })}
+                    className={`rounded-lg border px-3 py-2.5 text-sm transition-colors ${
+                      form.sectionKey === key
+                        ? "border-bronze/60 bg-bronze/10 text-bronze"
+                        : "border-line text-muted hover:text-paper"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {errors.sectionKey && (
+                <p className="mt-2 text-xs text-danger">{errors.sectionKey}</p>
+              )}
+            </Card>
+          )}
+
           {/* متن‌ها */}
+
           <Card icon={Type} title="متن‌ها">
-            {TEXT_SLOTS.includes(slot) && (
+            {eyebrowSlot && (
               <Field
                 label="متن کوچک بالای تیتر (اختیاری)"
                 value={form.eyebrow}
@@ -175,30 +309,33 @@ const BannerForm = ({ banner, defaultSlot }) => {
             )}
 
             <Field
-              label={
-                TEXT_SLOTS.includes(slot)
-                  ? "تیتر"
-                  : slot === "info"
-                    ? "متن تایل"
-                    : "برچسب روی تایل"
-              }
+              label={TITLE_LABEL[slot]}
               value={form.title}
               onChange={(e) => patch({ title: e.target.value })}
               maxLength={120}
               error={errors.title}
             />
 
-            {TEXT_SLOTS.includes(slot) && (
+            {textSlot && (
               <>
                 <TextAreaField
-                  label="توضیح کوتاه (اختیاری)"
+                  label={
+                    slot === "section"
+                      ? "توضیح زیر عنوان (اختیاری)"
+                      : "توضیح کوتاه (اختیاری)"
+                  }
                   value={form.subtitle}
                   onChange={(e) => patch({ subtitle: e.target.value })}
                   maxLength={300}
                   error={errors.subtitle}
                 />
+
                 <Field
-                  label="متن دکمه (اختیاری)"
+                  label={
+                    slot === "section"
+                      ? "متن لینک «مشاهده همه» (اختیاری)"
+                      : "متن دکمه (اختیاری)"
+                  }
                   value={form.ctaText}
                   onChange={(e) => patch({ ctaText: e.target.value })}
                   maxLength={40}
@@ -208,13 +345,7 @@ const BannerForm = ({ banner, defaultSlot }) => {
             )}
 
             <Field
-              label={
-                TEXT_SLOTS.includes(slot)
-                  ? "لینک دکمه"
-                  : slot === "info"
-                    ? "لینک (اختیاری)"
-                    : "لینک تایل"
-              }
+              label={LINK_LABEL[slot]}
               dir="ltr"
               value={form.ctaLink}
               onChange={(e) => patch({ ctaLink: e.target.value })}
@@ -222,31 +353,39 @@ const BannerForm = ({ banner, defaultSlot }) => {
               placeholder="/products?category=dog"
               error={errors.ctaLink}
             />
+
+            {slot === "promo" && (
+              <Field
+                label="متن چیپ شناور روی عکس (اختیاری)"
+                value={form.badge}
+                onChange={(e) => patch({ badge: e.target.value })}
+                maxLength={40}
+                placeholder="مثلاً با عشق انتخاب شده"
+                error={errors.badge}
+              />
+            )}
           </Card>
-          {slot === "promo" && (
-            <Field
-              label="متن چیپ شناور روی عکس (اختیاری)"
-              value={form.badge}
-              onChange={(e) => patch({ badge: e.target.value })}
-              maxLength={40}
-              placeholder="مثلاً با عشق انتخاب شده"
-              error={errors.badge}
-            />
-          )}
-          
+
           {/* تصویر */}
+
           {imageSlot && (
             <Card
               icon={ImageIcon}
-              title="تصویر"
-              hint="عکس تمیز و باکیفیت؛ برای این تایل الزامی است."
+              title={imageRequired ? "تصویر" : "تصویر پس‌زمینه (اختیاری)"}
+              hint={
+                imageRequired
+                  ? "عکس تمیز و باکیفیت؛ برای این بنر الزامی است."
+                  : "اگر عکسی نگذارید، همان ظاهر ساده‌ی فعلی نمایش داده می‌شود."
+              }
             >
+              <p className="mb-2 text-sm text-paper">تصویر دسکتاپ</p>
+
               <BannerImageField
                 value={form.image}
                 onChange={(image) => patch({ image })}
                 focal={{ x: form.focalX, y: form.focalY }}
                 onFocalChange={({ x, y }) => patch({ focalX: x, focalY: y })}
-                onBusyChange={setUploading}
+                onBusyChange={busy}
                 error={errors.image}
               />
 
@@ -256,10 +395,12 @@ const BannerForm = ({ banner, defaultSlot }) => {
                   className="mb-2 flex items-center justify-between text-sm text-muted"
                 >
                   <span>تیرگی روی عکس</span>
+
                   <span className="text-xs text-paper">
                     {toPersianDigits(form.overlay)}٪
                   </span>
                 </label>
+
                 <input
                   id="banner-overlay"
                   type="range"
@@ -271,12 +412,39 @@ const BannerForm = ({ banner, defaultSlot }) => {
                   className="w-full accent-[var(--color-bronze,#c8a46a)]"
                 />
               </div>
+
+              <div className="mt-6 border-t border-line pt-5">
+                <p className="mb-1 text-sm text-paper">
+                  تصویر موبایل (اختیاری)
+                </p>
+
+                <p className="mb-3 text-xs leading-6 text-muted">
+                  اگر عکس جداگانه‌ای (مثلاً عمودی‌تر) برای موبایل دارید اینجا
+                  بگذارید؛ وگرنه همان تصویر دسکتاپ استفاده می‌شود.
+                </p>
+
+                <BannerImageField
+                  value={form.imageMobile}
+                  onChange={(imageMobile) => patch({ imageMobile })}
+                  onBusyChange={busy}
+                  showFocal={false}
+                />
+              </div>
             </Card>
           )}
 
           {/* آیکون */}
-          {slot === "info" && (
-            <Card icon={Sparkles} title="آیکون">
+
+          {(slot === "info" || slot === "promo") && (
+            <Card
+              icon={Sparkles}
+              title="آیکون"
+              hint={
+                slot === "promo"
+                  ? "کنار متن چیپ شناور نمایش داده می‌شود."
+                  : undefined
+              }
+            >
               <div className="grid grid-cols-4 gap-2">
                 {Object.entries(BANNER_ICON_MAP).map(([key, Icon]) => (
                   <button
@@ -291,10 +459,12 @@ const BannerForm = ({ banner, defaultSlot }) => {
                     }`}
                   >
                     <Icon className="h-5 w-5" strokeWidth={1.6} />
+
                     {BANNER_ICON_LABELS[key]}
                   </button>
                 ))}
               </div>
+
               {errors.icon && (
                 <p className="mt-2 text-xs text-danger">{errors.icon}</p>
               )}
@@ -302,6 +472,7 @@ const BannerForm = ({ banner, defaultSlot }) => {
           )}
 
           {/* نمایش و زمان‌بندی */}
+
           <Card
             icon={CalendarClock}
             title="نمایش"
@@ -310,10 +481,12 @@ const BannerForm = ({ banner, defaultSlot }) => {
             <div className="mb-5 flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm text-paper">نمایش در سایت</p>
+
                 <p className="mt-0.5 text-xs text-muted">
                   {form.isActive ? "فعال" : "غیرفعال"}
                 </p>
               </div>
+
               <ActiveSwitch
                 checked={form.isActive}
                 onChange={(isActive) => patch({ isActive })}
@@ -348,6 +521,7 @@ const BannerForm = ({ banner, defaultSlot }) => {
                   </span>
                 )}
               </label>
+
               <label className="block text-xs text-muted">
                 پایان نمایش (اختیاری)
                 <input
@@ -369,14 +543,15 @@ const BannerForm = ({ banner, defaultSlot }) => {
         </div>
 
         {/* پیش‌نمایش زنده */}
+
         <div className="lg:sticky lg:top-6">
           <Card
             title="پیش‌نمایش"
-            hint="نمایی از همین تایل در هیرو صفحه‌ی اصلی."
+            hint="نمایی از همین بنر در صفحه‌ی اصلی (نسخه‌ی دسکتاپ)."
           >
-            <BannerTilePreview
+            <BannerPreviewPanel
               banner={preview}
-              className={`w-full ${PREVIEW_ASPECT[slot]}`}
+              aspect={PREVIEW_ASPECT[slot]}
             />
           </Card>
         </div>
@@ -396,13 +571,18 @@ const BannerForm = ({ banner, defaultSlot }) => {
 };
 
 // شناسه توی آدرس باشه یعنی ویرایش؛ فرم بعد از رسیدن داده ساخته میشه تا state اولیه درست باشه
+
 const AdminBannerFormPage = () => {
   const { id } = useParams();
+
   const navigate = useNavigate();
+
   const [searchParams] = useSearchParams();
+
   const banner = useAdminBanner(id);
 
   const slotParam = searchParams.get("slot");
+
   const defaultSlot = SLOTS.includes(slotParam) ? slotParam : "main";
 
   if (id && banner.isLoading) {
@@ -415,6 +595,7 @@ const AdminBannerFormPage = () => {
     return (
       <div className="py-24 text-center">
         <p className="text-sm text-muted">بنر پیدا نشد.</p>
+
         <Button
           className="mt-4"
           variant="secondary"
@@ -428,7 +609,7 @@ const AdminBannerFormPage = () => {
 
   return (
     <BannerForm
-      key={banner.data?._id ?? "new"}
+      key={banner.data?._id ?? `new-${defaultSlot}`}
       banner={banner.data}
       defaultSlot={defaultSlot}
     />

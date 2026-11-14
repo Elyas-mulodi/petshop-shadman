@@ -8,24 +8,22 @@ const requiredMsg = (label) => ({
 
 const objectId = z.string().regex(/^[0-9a-fA-F]{24}$/, "شناسه معتبر نیست");
 
+// مسیر داخلی سایت یا https (بدون فاصله و بک‌اسلش؛ جلوی javascript: و //host هم گرفته می‌شه)
 const link = z
   .string()
   .trim()
   .max(300, "لینک خیلی طولانی است")
-  .refine(
-    (v) => !/[\\\s\x00-\x1f]/.test(v),
-    "لینک نباید فاصله یا بک‌اسلش داشته باشد",
-  )
+  .refine((v) => !/[\\\s\x00-\x1f]/.test(v), "لینک نباید فاصله یا بک‌اسلش داشته باشد")
   .refine(
     (v) => (v.startsWith("/") && !v.startsWith("//")) || /^https:\/\//i.test(v),
     "لینک باید مسیر داخلی (مثل /products) یا آدرس کامل https باشد",
   );
 
+// فقط فایل‌هایی که خود سیستم از /banners/admin/upload آپلود کرده
 const imageUrl = z
   .string()
   .trim()
   .regex(/^\/uploads\/banners\/[A-Za-z0-9._-]+$/, "آدرس تصویر معتبر نیست");
-
 const focalAxis = z.number(requiredMsg("نقطه‌ی مهم تصویر")).min(0).max(100);
 
 const fields = {
@@ -42,7 +40,13 @@ const fields = {
   ctaLink: link.or(z.literal("")).optional(),
   image: imageUrl.nullable().optional(), // الزامی بودنش برای tall/square توی مدل چک میشه
   imageAlt: z.string().trim().max(150, "حداکثر ۱۵۰ کاراکتر").optional(),
-  // x و y باید با هم بیان، وگرنه یکی‌شون موقع ویرایش پاک میشه
+  imageMobile: imageUrl.nullable().optional(),
+  sectionKey: z
+    .string()
+    .trim()
+    .regex(/^[a-z0-9-]{2,30}$/, "کلید بخش نامعتبر است")
+    .or(z.literal(""))
+    .optional(),
   focalPoint: z.object({ x: focalAxis, y: focalAxis }).optional(),
   overlay: z
     .number()

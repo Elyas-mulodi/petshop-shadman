@@ -18,6 +18,7 @@ const FALLBACK = {
   badge: "با عشق انتخاب شده",
   icon: "heart",
   image: null,
+  imageMobile: null,
   overlay: 0,
 };
 
@@ -25,9 +26,13 @@ const FALLBACK = {
 const START_CLIP = "inset(9% 22% 9% 22% round 600px 600px 0px 0px)";
 const END_CLIP = "inset(0% 0% 0% 0% round 28px 28px 28px 28px)";
 
+const hasBannerImage = (banner) => Boolean(getImageUrl(banner.image) || getImageUrl(banner.imageMobile));
+
 // لینک داخلی با Link، لینک https بیرونی با <a>
-const SmartLink = ({ to, className, children }) =>
-  /^https?:\/\//i.test(to) ? (
+const SmartLink = ({ to, className, children }) => {
+  if (!to) return <span className={className}>{children}</span>;
+
+  return /^https?:\/\//i.test(to) ? (
     <a href={to} target="_blank" rel="noopener noreferrer" className={className}>
       {children}
     </a>
@@ -36,6 +41,30 @@ const SmartLink = ({ to, className, children }) =>
       {children}
     </Link>
   );
+};
+
+// عکس دسکتاپ + عکس جدای موبایل (اگه توی پنل گذاشته شده باشه)
+// والد باید اندازه‌ی مشخص داشته باشه؛ خود عکس کل والد رو پر می‌کنه
+const PromoPicture = ({ banner }) => {
+  const image = getImageUrl(banner.image);
+  const mobileImage = getImageUrl(banner.imageMobile);
+  const focal = banner.focalPoint ?? { x: 50, y: 50 };
+
+  if (!image && !mobileImage) return null;
+
+  return (
+    <picture className="contents">
+      {mobileImage && <source media="(max-width: 767px)" srcSet={mobileImage} />}
+      <img
+        src={image || mobileImage}
+        alt={banner.imageAlt || banner.title}
+        decoding="async"
+        className="h-full w-full object-cover"
+        style={{ objectPosition: `${focal.x}% ${focal.y}%` }}
+      />
+    </picture>
+  );
+};
 
 // هر کلمه با اسکرول از کم‌رنگ به پررنگ میاد
 const Word = ({ word, progress, from, to }) => {
@@ -63,19 +92,15 @@ const CtaButton = ({ banner }) => (
 
 // نسخه‌ی ثابت برای کاربرانی که حرکت کم کردن
 const StaticPromo = ({ banner }) => {
-  const image = getImageUrl(banner.image);
-  const focal = banner.focalPoint ?? { x: 50, y: 50 };
+  const hasImage = hasBannerImage(banner);
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
       <div className="relative flex min-h-[28rem] items-end overflow-hidden rounded-3xl border border-line bg-ink">
-        {image ? (
-          <img
-            src={image}
-            alt={banner.imageAlt || banner.title}
-            className="absolute inset-0 h-full w-full object-cover"
-            style={{ objectPosition: `${focal.x}% ${focal.y}%` }}
-          />
+        {hasImage ? (
+          <div className="absolute inset-0">
+            <PromoPicture banner={banner} />
+          </div>
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-bronze/25 via-ink to-sage/20" />
         )}
@@ -97,16 +122,10 @@ const StaticPromo = ({ banner }) => {
   );
 };
 
-const PromoSection = ({ fallback = true }) => {
-  const reduce = useReducedMotion();
-  const { data, isPending } = useBanners();
+// صحنه‌ی اسکرول: فقط وقتی mount می‌شه که بنر آماده است، پس ref از همون اولین رندر به <section> وصله
+// (اگه useScroll وقتی ref هنوز خالیه اجرا بشه، به‌جای این بخش کل صفحه رو دنبال می‌کنه)
+const PromoScene = ({ banner }) => {
   const ref = useRef(null);
-
-  // اولین بنر promo (کمترین order) نمایش داده میشه
-  const banner = useMemo(
-    () => (data ?? []).find((b) => b.slot === "promo") ?? (fallback ? FALLBACK : null),
-    [data, fallback],
-  );
 
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
   const p = useSpring(scrollYProgress, { stiffness: 110, damping: 30, mass: 0.35 });
@@ -127,21 +146,9 @@ const PromoSection = ({ fallback = true }) => {
   // دکمه تا وقتی دیده نمیشه، قابل کلیک نباشه
   const ctaEvents = useTransform(p, (v) => (v > 0.88 ? "auto" : "none"));
 
-  if (isPending) {
-    return (
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
-        <div className="h-[28rem] animate-pulse rounded-3xl bg-well/40" />
-      </section>
-    );
-  }
-
-  if (!banner) return null;
-  if (reduce) return <StaticPromo banner={banner} />;
-
-  const image = getImageUrl(banner.image);
-  const focal = banner.focalPoint ?? { x: 50, y: 50 };
+  const hasImage = hasBannerImage(banner);
   const BadgeIcon = BANNER_ICON_MAP[banner.icon] ?? PawPrint;
-  const words = banner.title.split(" ");
+  const words = (banner.title ?? "").split(" ").filter(Boolean);
 
   return (
     // ارتفاع بلند = مسافت اسکرول؛ داخلش صحنه sticky می‌مونه
@@ -169,14 +176,8 @@ const PromoSection = ({ fallback = true }) => {
         {/* صحنه‌ی برش‌خورده: قاب قوسی -> کارت عریض */}
         <motion.div style={{ clipPath }} className="absolute inset-0 overflow-hidden bg-well">
           <motion.div style={{ scale: imageScale, y: imageY }} className="absolute -inset-[6%]">
-            {image ? (
-              <img
-                src={image}
-                alt={banner.imageAlt || banner.title}
-                decoding="async"
-                className="h-full w-full object-cover"
-                style={{ objectPosition: `${focal.x}% ${focal.y}%` }}
-              />
+            {hasImage ? (
+              <PromoPicture banner={banner} />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-bronze/25 via-ink to-sage/20">
                 <PawPrint className="h-40 w-40 text-paper/10" strokeWidth={1} />
@@ -184,7 +185,7 @@ const PromoSection = ({ fallback = true }) => {
             )}
           </motion.div>
 
-          {image && <div className="absolute inset-0 bg-ink" style={{ opacity: (banner.overlay ?? 0) / 100 }} />}
+          {hasImage && <div className="absolute inset-0 bg-ink" style={{ opacity: (banner.overlay ?? 0) / 100 }} />}
 
           {/* سایه برای خوانایی متن؛ با باز شدن قاب میاد */}
           <motion.div aria-hidden style={{ opacity: shadeOpacity }} className="absolute inset-0">
@@ -250,6 +251,30 @@ const PromoSection = ({ fallback = true }) => {
       </div>
     </section>
   );
+};
+
+const PromoSection = ({ fallback = true }) => {
+  const reduce = useReducedMotion();
+  const { data, isPending } = useBanners();
+
+  // اولین بنر promo (کمترین order) نمایش داده میشه
+  const banner = useMemo(
+    () => (data ?? []).find((b) => b.slot === "promo") ?? (fallback ? FALLBACK : null),
+    [data, fallback],
+  );
+
+  if (isPending) {
+    return (
+      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
+        <div className="h-[28rem] animate-pulse rounded-3xl bg-well/40" />
+      </section>
+    );
+  }
+
+  if (!banner) return null;
+  if (reduce) return <StaticPromo banner={banner} />;
+
+  return <PromoScene key={banner._id} banner={banner} />;
 };
 
 export default PromoSection;

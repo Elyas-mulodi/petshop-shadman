@@ -1,15 +1,21 @@
 ﻿import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
-import { ArrowLeft, Truck, ShieldCheck, Sparkles } from "lucide-react";
+import { Truck, ShieldCheck, Sparkles } from "lucide-react";
 import Section from "../../components/home/Section";
 import BentoHero from "../../components/home/BentoHero";
 import ProductCard from "../../components/common/ProductCard";
 import Skeleton from "../../components/common/Skeleton";
 import ErrorState from "../../components/common/ErrorState";
-import { CarouselGrid, CarouselItem } from "../../components/common/CarouselGrid";
+import {
+  CarouselGrid,
+  CarouselItem,
+} from "../../components/common/CarouselGrid";
 import useCategoryTree from "../../features/categories/useCategoryTree";
-import { getNewProducts, getDiscountedProducts } from "../../features/products/productsApi";
+import {
+  getNewProducts,
+  getDiscountedProducts,
+} from "../../features/products/productsApi";
 import { getImageUrl } from "../../utils/imageUrl";
 import HomeHero from "../../components/home/PromoSection";
 import PromoSection from "../../components/home/PromoSection";
@@ -23,7 +29,11 @@ const perks = [
 ];
 
 const useProductList = (fetcher, errorMessage) => {
-  const [state, setState] = useState({ products: [], loading: true, error: null });
+  const [state, setState] = useState({
+    products: [],
+    loading: true,
+    error: null,
+  });
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -31,8 +41,16 @@ const useProductList = (fetcher, errorMessage) => {
     setState((s) => ({ ...s, loading: true, error: null }));
 
     fetcher()
-      .then((res) => active && setState({ products: res.data.data, loading: false, error: null }))
-      .catch(() => active && setState({ products: [], loading: false, error: errorMessage }));
+      .then(
+        (res) =>
+          active &&
+          setState({ products: res.data.data, loading: false, error: null }),
+      )
+      .catch(
+        () =>
+          active &&
+          setState({ products: [], loading: false, error: errorMessage }),
+      );
 
     return () => {
       active = false;
@@ -43,28 +61,6 @@ const useProductList = (fetcher, errorMessage) => {
 
   return { ...state, retry };
 };
-
-const MobileHero = () => (
-  <section className="relative lg:hidden">
-    <div className="relative aspect-[3/4] w-full overflow-hidden bg-well sm:aspect-[16/9]">
-      {/* TODO: عکس واقعی هرو جایگزین این پس‌زمینه بشه */}
-      <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/60 to-ink/10" />
-      <div className="absolute inset-x-0 bottom-0 p-5 pb-8 sm:p-8">
-        <p className="mb-2 text-xs text-sage">پت شاپ شادمان</p>
-        <h1 className="max-w-xs font-display text-3xl font-bold leading-snug text-paper sm:max-w-sm sm:text-4xl">
-          هر آنچه همراه چهارپای شما نیاز دارد
-        </h1>
-        <Link
-          to="/products"
-          className="mt-5 inline-flex items-center gap-2 rounded-lg bg-bronze px-5 py-2.5 text-sm font-medium text-ink"
-        >
-          مشاهده محصولات
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-      </div>
-    </div>
-  </section>
-);
 
 const PerksRow = () => (
   <div className="border-b border-line">
@@ -114,19 +110,28 @@ const CategoryTile = ({ cat }) => {
 };
 
 const HomePage = () => {
-  const { categories, loading: categoriesLoading, error: categoriesError, retry: retryCategories } =
-    useCategoryTree();
-  const newState = useProductList(getNewProducts, "دریافت محصولات جدید با خطا مواجه شد");
-  const discountedState = useProductList(getDiscountedProducts, "دریافت تخفیف‌ها با خطا مواجه شد");
+  const {
+    categories,
+    loading: categoriesLoading,
+    error: categoriesError,
+    retry: retryCategories,
+  } = useCategoryTree();
+  const newState = useProductList(
+    getNewProducts,
+    "دریافت محصولات جدید با خطا مواجه شد",
+  );
+  const discountedState = useProductList(
+    getDiscountedProducts,
+    "دریافت تخفیف‌ها با خطا مواجه شد",
+  );
 
   return (
     <div>
-      <MobileHero />
       <BentoHero />
       <PerksRow />
 
       {/* دسته‌های پیشنهادی */}
-      <Section title="دسته‌بندی‌ها" viewAllTo="/categories">
+      <Section title="دسته‌بندی‌ها" bannerKey="categories" viewAllTo="/categories">
         {categoriesLoading ? (
           <CarouselGrid>
             {Array.from({ length: 4 }).map((_, i) => (
@@ -138,7 +143,9 @@ const HomePage = () => {
         ) : categoriesError ? (
           <ErrorState message={categoriesError} onRetry={retryCategories} />
         ) : categories.length === 0 ? (
-          <p className="px-4 text-sm text-muted lg:px-0">هنوز دسته‌بندی‌ای ثبت نشده است.</p>
+          <p className="px-4 text-sm text-muted lg:px-0">
+            هنوز دسته‌بندی‌ای ثبت نشده است.
+          </p>
         ) : (
           <CarouselGrid>
             {categories.slice(0, 8).map((cat) => (
@@ -151,7 +158,12 @@ const HomePage = () => {
       </Section>
 
       {/* محصولات جدید */}
-      <Section title="محصولات جدید" subtitle="تازه‌ترین‌ها در فروشگاه" viewAllTo="/products?sort=newest">
+      <Section
+        bannerKey="latest"
+        title="جدیدترین محصولات"
+        subtitle="تازه‌ترین‌ها برای عزیزانتان"
+        viewAllTo="/products"
+      >
         {newState.loading ? (
           <CarouselGrid>
             {Array.from({ length: 4 }).map((_, i) => (
@@ -163,7 +175,9 @@ const HomePage = () => {
         ) : newState.error ? (
           <ErrorState message={newState.error} onRetry={newState.retry} />
         ) : newState.products.length === 0 ? (
-          <p className="px-4 text-sm text-muted lg:px-0">در حال حاضر محصول جدیدی ثبت نشده است.</p>
+          <p className="px-4 text-sm text-muted lg:px-0">
+            در حال حاضر محصول جدیدی ثبت نشده است.
+          </p>
         ) : (
           <CarouselGrid>
             {newState.products.slice(0, 8).map((p) => (
@@ -176,7 +190,12 @@ const HomePage = () => {
       </Section>
 
       {/* تخفیف‌دارها */}
-      <Section title="تخفیف‌های ویژه" subtitle="پیشنهادهای محدود" viewAllTo="/discounts">
+      <Section
+        title="تخفیف‌های ویژه"
+        subtitle="پیشنهادهای محدود"
+        viewAllTo="/discounts"
+        bannerKey="discounts"
+      >
         {discountedState.loading ? (
           <CarouselGrid>
             {Array.from({ length: 4 }).map((_, i) => (
@@ -186,9 +205,14 @@ const HomePage = () => {
             ))}
           </CarouselGrid>
         ) : discountedState.error ? (
-          <ErrorState message={discountedState.error} onRetry={discountedState.retry} />
+          <ErrorState
+            message={discountedState.error}
+            onRetry={discountedState.retry}
+          />
         ) : discountedState.products.length === 0 ? (
-          <p className="px-4 text-sm text-muted lg:px-0">در حال حاضر تخفیف فعالی وجود ندارد.</p>
+          <p className="px-4 text-sm text-muted lg:px-0">
+            در حال حاضر تخفیف فعالی وجود ندارد.
+          </p>
         ) : (
           <CarouselGrid>
             {discountedState.products.slice(0, 8).map((p) => (
@@ -199,7 +223,7 @@ const HomePage = () => {
           </CarouselGrid>
         )}
       </Section>
-      <PromoSection/>
+      <PromoSection />
     </div>
   );
 };

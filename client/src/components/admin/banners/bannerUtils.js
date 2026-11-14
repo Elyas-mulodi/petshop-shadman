@@ -1,22 +1,35 @@
 export const SLOT_LABELS = {
-  main: "تایل اصلی",
-  tall: "تایل بلند",
-  square: "تایل مربعی",
-  info: "تایل کوچک",
+  main: "تایل اصلی هیرو",
+  tall: "تایل بلند هیرو",
+  square: "تایل مربعی هیرو",
+  info: "تایل کوچک هیرو",
   promo: "بنر میان‌صفحه",
+  section: "عنوان بخش‌های صفحه",
 };
 
 export const SLOT_HINTS = {
-  main: "تیتر و دکمه‌ی بزرگ سمت راست هیرو.",
+  main: "تیتر و دکمه‌ی بزرگ هیرو؛ عکس پس‌زمینه اختیاری است.",
   tall: "تصویر بلند کنار تایل اصلی (مثلاً دسته‌ی سگ‌ها).",
   square: "تصویر مربعی بالای ستون آخر (مثلاً دسته‌ی گربه‌ها).",
   info: "تایل کوچک پایین ستون آخر (مثلاً ارسال رایگان).",
   promo: "بنر بزرگ بین بخش‌های صفحه‌ی اصلی: متن، عکس و یک چیپ شناور.",
+  section: "عنوان، توضیح و عکس پس‌زمینه‌ی یکی از بخش‌های صفحه‌ی اصلی (مثلاً «جدیدترین محصولات»).",
 };
 
+// ⚠️ کلید هر بخش صفحه‌ی خانه: همان کلیدی که توی Home.jsx به Section میدی (bannerKey) باید با این‌ها یکی باشه
+// این‌ها دقیقاً همون بخش‌هایی‌ان که الان توی Home.jsx وجود دارن
+export const SECTION_KEYS = [
+  { key: "categories", label: "دسته‌بندی‌ها" },
+  { key: "latest", label: "جدیدترین محصولات" },
+  { key: "discounts", label: "تخفیف‌های ویژه" },
+];
+
 export const SLOTS = Object.keys(SLOT_LABELS);
-export const IMAGE_SLOTS = ["tall", "square", "promo"];
-export const TEXT_SLOTS = ["main", "promo"];
+export const IMAGE_SLOTS = ["tall", "square", "promo"]; // عکس الزامی
+export const OPTIONAL_IMAGE_SLOTS = ["main", "section"]; // عکس پس‌زمینه‌ی اختیاری
+export const ALL_IMAGE_SLOTS = [...IMAGE_SLOTS, ...OPTIONAL_IMAGE_SLOTS];
+export const TEXT_SLOTS = ["main", "promo", "section"];
+export const EYEBROW_SLOTS = ["main", "promo"];
 
 // وضعیت واقعی نمایش بنر (فعال بودن + بازه‌ی زمان‌بندی)
 export function getBannerStatus(banner, now = Date.now()) {
@@ -47,6 +60,7 @@ export const isValidLink = (value) =>
 
 export const emptyForm = (slot = "main") => ({
   slot,
+  sectionKey: "",
   eyebrow: "",
   title: "",
   subtitle: "",
@@ -54,6 +68,7 @@ export const emptyForm = (slot = "main") => ({
   ctaLink: "",
   badge: "",
   image: "",
+  imageMobile: "",
   focalX: 50,
   focalY: 50,
   overlay: 20,
@@ -66,6 +81,7 @@ export const emptyForm = (slot = "main") => ({
 
 export const formFromBanner = (b) => ({
   slot: b.slot,
+  sectionKey: b.sectionKey ?? "",
   eyebrow: b.eyebrow ?? "",
   title: b.title ?? "",
   subtitle: b.subtitle ?? "",
@@ -73,6 +89,7 @@ export const formFromBanner = (b) => ({
   ctaLink: b.ctaLink ?? "",
   badge: b.badge ?? "",
   image: b.image ?? "",
+  imageMobile: b.imageMobile ?? "",
   focalX: b.focalPoint?.x ?? 50,
   focalY: b.focalPoint?.y ?? 50,
   overlay: b.overlay ?? 20,
@@ -86,7 +103,7 @@ export const formFromBanner = (b) => ({
 // فقط فیلدهای مربوط به تایل انتخاب‌شده فرستاده میشن؛ بقیه پاک میشن
 export function payloadFromForm(form) {
   const text = TEXT_SLOTS.includes(form.slot);
-  const imageSlot = IMAGE_SLOTS.includes(form.slot);
+  const hasImage = ALL_IMAGE_SLOTS.includes(form.slot);
   const promo = form.slot === "promo";
   const title = form.title.trim();
   const ctaText = text ? form.ctaText.trim() : "";
@@ -94,14 +111,16 @@ export function payloadFromForm(form) {
 
   return {
     slot: form.slot,
+    sectionKey: form.slot === "section" ? form.sectionKey : "",
     title,
-    eyebrow: text ? form.eyebrow.trim() : "",
+    eyebrow: EYEBROW_SLOTS.includes(form.slot) ? form.eyebrow.trim() : "",
     subtitle: text ? form.subtitle.trim() : "",
     ctaText,
     ctaLink: text && !ctaText ? "" : form.ctaLink.trim(),
     badge,
-    image: imageSlot ? form.image || null : null,
-    imageAlt: imageSlot ? title : "",
+    image: hasImage ? form.image || null : null,
+    imageMobile: hasImage ? form.imageMobile || null : null,
+    imageAlt: hasImage ? title : "",
     focalPoint: { x: form.focalX, y: form.focalY },
     overlay: Number(form.overlay),
     icon: form.slot === "info" || (promo && badge) ? form.icon : null,
@@ -120,11 +139,13 @@ export function validateBanner(form) {
   if (title.length < 2) errors.title = "عنوان را وارد کنید (حداقل ۲ حرف)";
   else if (title.length > 120) errors.title = "عنوان خیلی طولانی است";
 
+  if (form.slot === "section" && !form.sectionKey) errors.sectionKey = "یک بخش را انتخاب کنید";
+
   if (TEXT_SLOTS.includes(form.slot)) {
     if (form.eyebrow.trim().length > 60) errors.eyebrow = "حداکثر ۶۰ کاراکتر";
     if (form.subtitle.trim().length > 300) errors.subtitle = "حداکثر ۳۰۰ کاراکتر";
     if (form.ctaText.trim().length > 40) errors.ctaText = "حداکثر ۴۰ کاراکتر";
-    if (form.ctaText.trim() && !link) errors.ctaLink = "لینک دکمه را وارد کنید";
+    if (form.ctaText.trim() && !link) errors.ctaLink = "لینک را وارد کنید";
   }
 
   if (form.slot === "promo" && form.badge.trim().length > 40) errors.badge = "حداکثر ۴۰ کاراکتر";
