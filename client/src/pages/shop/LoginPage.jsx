@@ -2,7 +2,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff } from "lucide-react";
 import AuthShell from "../../components/auth/AuthShell";
 import {
   Field,
@@ -42,12 +42,13 @@ const LoginPage = () => {
     }
   };
 
+  // ناحیه‌ی لمس بزرگ‌تر از خود آیکون (روی موبایل راحت‌تر زده میشه)
   const toggle = (
     <button
       type="button"
       onClick={() => setShow((s) => !s)}
       aria-label={show ? "پنهان کردن رمز" : "نمایش رمز"}
-      className="text-muted hover:text-paper"
+      className="-m-2 rounded-full p-2 text-muted transition-colors hover:text-paper focus-visible:text-bronze focus-visible:outline-none"
     >
       {show ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
     </button>
@@ -63,7 +64,11 @@ const LoginPage = () => {
         <StepHeading title="ورود به حساب" />
 
         {notice && (
-          <p className="mb-4 rounded-lg border border-sage/50 bg-sage/10 px-3 py-2 text-center text-sm text-paper">
+          <p
+            role="status"
+            className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-sage/40 bg-sage/10 px-3 py-2.5 text-center text-sm leading-6 text-paper"
+          >
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-sage" />
             {notice}
           </p>
         )}
@@ -72,7 +77,8 @@ const LoginPage = () => {
           label="شماره موبایل"
           dir="ltr"
           inputMode="tel"
-          autoComplete="tel"
+          autoComplete="username"
+          enterKeyHint="next"
           placeholder="09123456789"
           autoFocus
           error={errors.phone?.message}
@@ -87,6 +93,7 @@ const LoginPage = () => {
           type={show ? "text" : "password"}
           dir="ltr"
           autoComplete="current-password"
+          enterKeyHint="go"
           trailing={toggle}
           error={errors.password?.message}
           {...register("password")}
@@ -95,14 +102,27 @@ const LoginPage = () => {
         <FormError message={serverError} />
         <SubmitButton loading={loading}>ورود</SubmitButton>
 
-        <div className="mt-5 flex items-center justify-between text-sm">
-          <Link to="/forgot-password" className="text-muted hover:text-paper">
+        <div className="mt-4 text-center">
+          <Link
+            to="/forgot-password"
+            className="inline-block py-1.5 text-sm text-muted transition-colors hover:text-paper"
+          >
             فراموشی رمز عبور
           </Link>
-          <Link to="/register" className="text-bronze hover:underline">
-            ساخت حساب
-          </Link>
         </div>
+
+        {/* ثبت‌نام: جدا و واضح، با ناحیه‌ی لمس بزرگ */}
+        <div className="mt-4 flex items-center gap-3" aria-hidden>
+          <span className="h-px flex-1 bg-line" />
+          <span className="text-xs text-muted">حساب ندارید؟</span>
+          <span className="h-px flex-1 bg-line" />
+        </div>
+        <Link
+          to="/register"
+          className="mt-4 flex items-center justify-center rounded-full border border-line py-3 text-sm text-bronze transition-colors hover:border-bronze/60 hover:bg-bronze/10"
+        >
+          ساخت حساب
+        </Link>
       </form>
     </AuthShell>
   );

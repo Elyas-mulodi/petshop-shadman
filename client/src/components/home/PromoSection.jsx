@@ -155,11 +155,13 @@ const PromoScene = ({ banner }) => {
     <section ref={ref} className="mx-auto h-[210vh] max-w-7xl px-4 sm:px-6 lg:h-[240vh] lg:px-8">
       <div className="sticky top-20 h-[calc(100svh-6rem)] min-h-[30rem]">
         {/* نور برنزی پشت قاب */}
-        <motion.div
-          aria-hidden
-          style={{ opacity: glowOpacity }}
-          className="pointer-events-none absolute left-1/2 top-1/2 h-[26rem] w-[26rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-bronze/25 blur-3xl"
-        />
+        {/* wrapper با overflow-hidden: نور ۴۱۶ پیکسلی روی موبایل از عرض صفحه بیرون می‌زد و اسکرول افقی می‌ساخت */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+          <motion.div
+            style={{ opacity: glowOpacity }}
+            className="absolute left-1/2 top-1/2 h-[26rem] w-[26rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-bronze/25 blur-3xl"
+          />
+        </div>
 
         {/* متن کوچک بالای قاب، فقط اول */}
         {banner.eyebrow && (

@@ -57,12 +57,19 @@ const RegisterPage = () => {
           submitLabel="دریافت کد تایید"
           onSubmit={handleSendOtp}
           footer={
-            <p className="mt-5 text-center text-sm text-muted">
-              قبلاً ثبت‌نام کرده‌اید؟{" "}
-              <Link to="/login" className="text-bronze hover:underline">
+            <>
+              <div className="mt-5 flex items-center gap-3" aria-hidden>
+                <span className="h-px flex-1 bg-line" />
+                <span className="text-xs text-muted">قبلاً ثبت‌نام کرده‌اید؟</span>
+                <span className="h-px flex-1 bg-line" />
+              </div>
+              <Link
+                to="/login"
+                className="mt-4 flex items-center justify-center rounded-full border border-line py-3 text-sm text-bronze transition-colors hover:border-bronze/60 hover:bg-bronze/10"
+              >
                 ورود
               </Link>
-            </p>
+            </>
           }
         />
       )}

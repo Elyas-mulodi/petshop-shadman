@@ -11,39 +11,45 @@ const ProductCard = ({ product }) => {
   return (
     <Link
       to={`/products/${product.slug}`}
-      className="group block overflow-hidden rounded-lg border border-line bg-card transition-colors hover:border-bronze/50"
+      className="group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-card transition-all duration-300 hover:border-bronze/50 focus-visible:border-bronze focus-visible:outline-none md:hover:-translate-y-0.5 md:hover:shadow-lg md:hover:shadow-black/20"
     >
-      <div className="relative aspect-square overflow-hidden bg-well">
+      {/* تصویر */}
+      <div className="relative aspect-square shrink-0 overflow-hidden bg-well">
         {image ? (
           <img
             src={image}
             alt={product.name}
             loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            decoding="async"
+            className="h-full w-full object-cover transition-transform duration-500 ease-out md:group-hover:scale-[1.05]"
           />
         ) : (
-          <span className="flex h-full items-center justify-center">
-            <PawPrint className="h-8 w-8 text-sage" strokeWidth={1.4} />
+          <span className="flex h-full items-center justify-center bg-gradient-to-br from-bronze/10 via-well to-sage/10">
+            <PawPrint className="h-10 w-10 text-sage/70" strokeWidth={1.3} />
           </span>
         )}
 
         {hasDiscount && (
-          <span className="absolute right-2 top-2 rounded-md bg-bronze px-2 py-1 text-xs font-medium text-ink">
-            {toPersianDigits(discountPercent)}٪ تخفیف
+          <span className="absolute start-2 top-2 rounded-full bg-bronze px-2 py-0.5 text-[11px] font-bold leading-5 text-ink shadow-sm sm:px-2.5 sm:text-xs">
+            {toPersianDigits(discountPercent)}٪<span className="hidden sm:inline"> تخفیف</span>
           </span>
         )}
       </div>
 
-      <div className="p-3.5">
+      {/* اطلاعات: قد همه‌ی کارت‌های یک ردیف یکسانه و قیمت همیشه پایین کارت می‌چسبه */}
+      <div className="flex flex-1 flex-col p-3 sm:p-4">
         {product.brand?.name && (
-          <p className="mb-1 text-xs text-muted">{product.brand.name}</p>
+          <p className="mb-1 truncate text-[11px] text-muted sm:text-xs">{product.brand.name}</p>
         )}
-        <p className="mb-2 line-clamp-2 text-sm text-paper">{product.name}</p>
 
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-bronze">{formatToman(finalPrice)}</span>
+        <h3 className="line-clamp-2 min-h-10 text-[13px] leading-5 text-paper sm:min-h-12 sm:text-sm sm:leading-6">
+          {product.name}
+        </h3>
+
+        <div className="mt-auto flex flex-col gap-0.5 pt-2.5 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-2">
+          <span className="text-sm font-bold text-bronze sm:text-base">{formatToman(finalPrice)}</span>
           {hasDiscount && (
-            <span className="text-xs text-muted line-through">{formatToman(basePrice)}</span>
+            <span className="text-[11px] text-muted line-through sm:text-xs">{formatToman(basePrice)}</span>
           )}
         </div>
       </div>

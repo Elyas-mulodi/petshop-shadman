@@ -1,7 +1,7 @@
 // توی موبایل/تبلت: اسکرول افقی با اسنپ. توی دسکتاپ (lg+): گرید معمولی چهارستونه.
 export const CarouselGrid = ({ children, className = "" }) => (
   <div
-    className={`-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-4 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0 lg:pb-0 [&::-webkit-scrollbar]:hidden ${className}`}
+    className={`flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 scroll-px-4 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-4 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0 lg:pb-0 [&::-webkit-scrollbar]:hidden ${className}`}
   >
     {children}
   </div>
