@@ -128,7 +128,7 @@ const Footer = () => {
         {/* نوار پایین */}
         <div className="flex flex-col gap-3 border-t border-line/70 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-center text-[11px] text-muted sm:text-start sm:text-xs">
-            © {new Date().getFullYear()} پت شاپ شادمان. تمامی حقوق محفوظ است.
+            © {new Date().getFullYear()} فاکسی پت. تمامی حقوق محفوظ است.
           </p>
 
           <div className="flex items-center justify-center gap-3 text-[11px] text-muted sm:justify-end sm:text-xs">

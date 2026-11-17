@@ -71,7 +71,7 @@ const Header = () => {
           scrolled ? "py-2" : "py-4"
         }`}
       >
-        <Link to="/" className="shrink-0" aria-label="پت شاپ شادمان">
+        <Link to="/" className="shrink-0" aria-label="فاکسی پت">
           <Logo />
         </Link>
 

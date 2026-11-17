@@ -12,7 +12,7 @@ export const requestLimoOtp = async (phone) => {
       },
       body: JSON.stringify({
         Mobile: phone,
-        Footer: "پت شاپ شادمان",
+        Footer: "فاکسی پت",
       }),
     });
 

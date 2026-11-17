@@ -1,6 +1,5 @@
 import { motion } from "motion/react";
 
-// TODO: وقتی لوگوی نهایی آماده شد، فقط محتوای <motion.svg> رو با لوگوی واقعی عوض کن
 const Logo = ({ className = "", compact = false }) => (
   <span className={`inline-flex items-center gap-3 ${className}`}>
     <motion.svg
@@ -23,14 +22,14 @@ const Logo = ({ className = "", compact = false }) => (
         fill="currentColor"
         className="font-display"
       >
-        ش
+        F
       </text>
     </motion.svg>
 
     {!compact && (
       <span className="flex flex-col leading-none">
-        <span className="font-display text-lg font-bold text-bronze">پت شاپ شادمان</span>
-        <span className="mt-1.5 text-[11px] tracking-[0.2em] text-muted">SHADMAN PET SHOP</span>
+        <span className="font-display text-lg font-bold text-bronze">Foxy Pet Shop</span>
+        <span className="mt-1.5 text-[11px] tracking-[0.2em] text-muted">ّFoxy Pet</span>
       </span>
     )}
   </span>

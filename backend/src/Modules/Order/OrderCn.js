@@ -174,7 +174,7 @@ export const createOrder = asyncHandler(async (req, res) => {
   // ---------- شروع پرداخت با زرین‌پال ----------
   const payment = await requestPayment({
     amountToman: totalAmount,
-    description: `پرداخت سفارش ${order.orderNumber} - پت شاپ شادمان`,
+    description: `پرداخت سفارش ${order.orderNumber} - فاکسی پت`,
     mobile: req.user.phone,
   });
 
@@ -444,7 +444,7 @@ export const retryOrderPayment = asyncHandler(async (req, res) => {
 
   const payment = await requestPayment({
     amountToman: order.totalAmount,
-    description: `پرداخت سفارش ${order.orderNumber} - پت شاپ شادمان`,
+    description: `پرداخت سفارش ${order.orderNumber} - فاکسی پت`,
     mobile: req.user.phone,
   });
 

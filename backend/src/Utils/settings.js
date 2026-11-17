@@ -16,7 +16,7 @@ const buildDefaults = () => ({
   },
   inventory: { lowStockThreshold: num(process.env.LOW_STOCK_THRESHOLD, 5) },
   store: {
-    name: "پت شاپ شادمان",
+    name: "فاکسی پت",
     manager: "امیرحسین شادمان",
     phone: "+989331984244",
     address: "بین پیامبر اعظم ۲۳ و ۲۵",

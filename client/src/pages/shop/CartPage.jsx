@@ -1,8 +1,8 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
-import { AnimatePresence, motion } from "motion/react";
-import { ShoppingBag } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { ArrowRight, Info, PawPrint, ShoppingBag, TriangleAlert } from "lucide-react";
 import CartItem from "../../components/cart/CartItem";
 import CartSummary, { CartStickyBar } from "../../components/cart/CartSummary";
 import FreeShippingBar from "../../components/cart/FreeShippingBar";
@@ -14,9 +14,15 @@ import { getProfile } from "../../features/auth/authApi";
 import { buildCartSummary } from "../../utils/cartSummary";
 import { toPersianDigits } from "../../utils/authHelpers";
 
+const ease = [0.22, 1, 0.36, 1];
+
+// ستون اصلی + ستون خلاصه‌ی سفارش؛ minmax(0,1fr) تا آیتم‌های بلند از عرض صفحه بیرون نزنن
+const LAYOUT = "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-8";
+
 const CartPage = () => {
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
   const { cart, showSkeleton, error, actionError, busyId, prunedNotice, updateQuantity, remove, retry } = useCart();
+  const reduce = useReducedMotion();
 
   const [shippingConfig, setShippingConfig] = useState(null);
   const [loyalty, setLoyalty] = useState(null);
@@ -49,15 +55,16 @@ const CartPage = () => {
 
   if (showSkeleton) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8 lg:py-12">
-        <Skeleton className="mb-8 h-8 w-40" />
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-12">
+        <Skeleton className="mb-6 h-8 w-40 sm:mb-8" />
+        <div className={LAYOUT}>
           <div className="flex flex-col gap-3">
+            <Skeleton className="h-12 rounded-2xl" />
             {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-28" />
+              <Skeleton key={i} className="h-28 rounded-2xl" />
             ))}
           </div>
-          <Skeleton className="hidden h-72 lg:block" />
+          <Skeleton className="hidden h-72 rounded-2xl lg:block" />
         </div>
       </div>
     );
@@ -65,7 +72,7 @@ const CartPage = () => {
 
   if (error && !cart) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-16 lg:px-8">
+      <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
         <ErrorState message={error} onRetry={retry} />
       </div>
     );
@@ -73,35 +80,73 @@ const CartPage = () => {
 
   if (!cart || cart.items.length === 0) {
     return (
-      <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
-        <ShoppingBag className="mb-5 h-12 w-12 text-sage" strokeWidth={1.3} />
-        <h1 className="font-display text-xl font-bold text-paper">سبد خرید شما خالی است</h1>
-        <p className="mt-2 text-sm text-muted">برای شروع، محصولات فروشگاه را ببینید.</p>
-        <Link
-          to="/products"
-          className="mt-6 rounded-lg bg-bronze px-6 py-2.5 text-sm font-medium text-ink transition-opacity hover:opacity-90"
+      <div className="relative overflow-hidden">
+        <div aria-hidden className="pointer-events-none absolute -right-24 top-10 h-64 w-64 rounded-full bg-bronze/10 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -left-24 bottom-10 h-64 w-64 rounded-full bg-sage/10 blur-3xl" />
+        <PawPrint
+          aria-hidden
+          className="pointer-events-none absolute -bottom-8 left-4 h-40 w-40 -rotate-12 text-paper/[0.04] sm:left-24 sm:h-56 sm:w-56"
+          strokeWidth={0.8}
+        />
+
+        <motion.div
+          initial={reduce ? false : { opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease }}
+          className="relative mx-auto flex min-h-[55vh] max-w-md flex-col items-center justify-center px-4 py-12 text-center sm:py-20"
         >
-          مشاهده محصولات
-        </Link>
+          <span className="mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-bronze/15 text-bronze ring-1 ring-bronze/25">
+            <ShoppingBag className="h-9 w-9" strokeWidth={1.4} />
+          </span>
+          <h1 className="font-display text-xl font-bold text-paper sm:text-2xl">سبد خرید شما خالی است</h1>
+          <p className="mt-2 text-sm leading-7 text-muted">برای شروع، محصولات فروشگاه را ببینید.</p>
+          <Link
+            to="/products"
+            className="mt-6 inline-flex items-center justify-center rounded-full bg-bronze px-8 py-3 text-sm font-medium text-ink transition-opacity hover:opacity-90"
+          >
+            مشاهده محصولات
+          </Link>
+        </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 pt-8 lg:px-8 lg:pt-12">
-      <h1 className="mb-8 font-display text-2xl font-bold text-paper">
-        سبد خرید <span className="text-sm font-normal text-muted">({toPersianDigits(cart.itemsCount)} کالا)</span>
-      </h1>
+    <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 sm:pt-8 lg:px-8 lg:pb-12 lg:pt-12">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 sm:mb-8">
+        <h1 className="flex items-center gap-3 font-display text-xl font-bold text-paper sm:text-2xl lg:text-3xl">
+          سبد خرید
+          <span className="rounded-full bg-bronze/15 px-3 py-0.5 font-sans text-xs font-medium text-bronze sm:text-sm">
+            {toPersianDigits(cart.itemsCount)} کالا
+          </span>
+        </h1>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
-        <div>
+        <Link
+          to="/products"
+          className="inline-flex items-center gap-1.5 text-xs text-muted transition-colors hover:text-bronze sm:text-sm"
+        >
+          ادامه خرید
+          <ArrowRight className="h-4 w-4 rotate-180" />
+        </Link>
+      </div>
+
+      <div className={LAYOUT}>
+        <div className="min-w-0">
           {prunedNotice && (
-            <p className="mb-4 rounded-lg border border-line bg-card px-4 py-3 text-xs text-muted">
+            <p
+              role="status"
+              className="mb-4 flex items-start gap-2.5 rounded-xl border border-line bg-card px-4 py-3 text-xs leading-6 text-muted"
+            >
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-sage" />
               بعضی کالاها دیگر موجود نبودند و از سبد شما حذف شدند.
             </p>
           )}
           {actionError && (
-            <p role="alert" className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
+            <p
+              role="alert"
+              className="mb-4 flex items-start gap-2.5 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-xs leading-6 text-danger"
+            >
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
               {actionError}
             </p>
           )}
@@ -117,7 +162,8 @@ const CartPage = () => {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: 40 }}
-                  transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                  transition={{ duration: 0.25, ease }}
+                  className="min-w-0"
                 >
                   <CartItem item={item} busy={busyId === item.variantId} onQuantity={updateQuantity} onRemove={remove} />
                 </motion.div>

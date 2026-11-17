@@ -26,7 +26,7 @@ const AuthShell = ({ title, subtitle, stepKey, progress, children }) => {
         </div>
 
         <p className="text-xs text-muted">
-          © {new Date().getFullYear()} پت شاپ شادمان
+          © {new Date().getFullYear()} فاکسی پت
         </p>
       </div>
 
