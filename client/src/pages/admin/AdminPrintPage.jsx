@@ -2,12 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Printer } from "lucide-react";
 import axiosInstance from "../../utils/axiosInstance";
-import { store } from "../../utils/storeInfo";
+import * as storeInfo from "../../utils/storeInfo";
 import { numberToPersianWords } from "../../utils/numberToWords";
 import { formatDate } from "../../utils/formatDate";
 import { toPersianDigits } from "../../utils/authHelpers";
 
 const MAX_PRINT = 30;
+
+// import نام‌دار (مثلاً { store }) اگه اسم export فرق داشته باشه، کل صفحه رو سفید می‌کنه.
+// با import * هر اسمی که storeInfo.js داره (store یا STORE یا default) پیدا میشه.
+const defaultStore = storeInfo.store ?? storeInfo.STORE ?? storeInfo.default ?? {};
+
 const OBJECT_ID = /^[0-9a-fA-F]{24}$/;
 
 const num = (n) => toPersianDigits(Math.round(n).toLocaleString("en-US"));
@@ -29,8 +34,8 @@ const InfoBlock = ({ title, children }) => (
 );
 
 // ---------- فاکتور ----------
-const InvoiceSheet = ({ order }) => {
-  const a = order.shippingAddress;
+const InvoiceSheet = ({ order, store }) => {
+  const a = order.shippingAddress ?? {};
   const discountLabel =
     order.discountSource === "coupon"
       ? `کد تخفیف${order.couponCode ? ` (${order.couponCode})` : ""}`
@@ -164,8 +169,8 @@ const InvoiceSheet = ({ order }) => {
 };
 
 // ---------- برگه‌ی بسته‌بندی ----------
-const PackingSheet = ({ order }) => {
-  const a = order.shippingAddress;
+const PackingSheet = ({ order, store }) => {
+  const a = order.shippingAddress ?? {};
   const totalQty = order.items.reduce((sum, i) => sum + i.quantity, 0);
 
   return (
@@ -268,15 +273,19 @@ const AdminPrintPage = () => {
   const ids = useMemo(() => parseIds(rawIds), [rawIds]);
 
   const [state, setState] = useState({ loading: true, orders: [], failed: 0 });
-  const [store, setStore] = useState(STORE); // تا لود تنظیمات، همین مقدار پیش‌فرض
+  // تا لود تنظیمات، اطلاعات پیش‌فرض فروشگاه (storeInfo.js) استفاده میشه
+  const [store, setStore] = useState(defaultStore);
 
   useEffect(() => {
     axiosInstance
       .get("/settings")
-      .then((res) => setStore(res.data.data.store))
+      .then((res) => {
+        const fetched = res.data?.data?.store;
+        if (fetched) setStore((prev) => ({ ...prev, ...fetched }));
+      })
       .catch(() => {}); // اگه نشد، همون اطلاعات پیش‌فرض
   }, []);
-  
+
   useEffect(() => {
     let cancelled = false;
     setState({ loading: true, orders: [], failed: 0 });
@@ -373,7 +382,7 @@ const AdminPrintPage = () => {
             style={{ breakAfter: i < orders.length - 1 ? "page" : "auto" }}
             className="mx-auto mb-6 min-h-[297mm] w-full max-w-[210mm] bg-white p-[10mm] shadow-lg print:mb-0 print:min-h-0 print:max-w-none print:p-0 print:shadow-none"
           >
-            <Sheet order={order} />
+            <Sheet order={order} store={store} />
           </article>
         ))
       )}

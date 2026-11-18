@@ -252,16 +252,14 @@ export const getProducts = asyncHandler(async (req, res) => {
   });
 });
 
-// ---------- محصولات جدید (۱۴ روز اخیر) ----------
-export const getNewProducts = asyncHandler(async (req, res) => {
-  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+// ---------- محصولات جدید: ۸ محصول فعالِ تازه‌ساخته ----------
+const NEW_PRODUCTS_LIMIT = 8;
 
-  const products = await Product.find({
-    isActive: true,
-    createdAt: { $gte: fourteenDaysAgo },
-  })
+export const getNewProducts = asyncHandler(async (req, res) => {
+  const products = await Product.find({ isActive: true })
     .populate("brand", "name logo")
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1, _id: -1 })
+    .limit(NEW_PRODUCTS_LIMIT);
 
   res.status(200).json({ success: true, data: products });
 });
@@ -986,7 +984,7 @@ export const exportInventory = asyncHandler(async (req, res) => {
         row.value,
         stockStatusText(v.stock, threshold),
         row.isActive ? "فعال" : "غیرفعال",
-        "", 
+        "",
       ]),
     );
   }

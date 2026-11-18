@@ -27,9 +27,6 @@ const AdminSidebar = ({
             onClick={onNavigate}
             className="flex min-w-0 items-center gap-2.5"
           >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden">
-              <Logo />
-            </div>
 
             <div className="flex flex-col gap-0.5">
               <span className="text-sm font-semibold leading-none text-paper">

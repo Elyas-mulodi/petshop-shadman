@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { motion } from "motion/react";
-import foxLogo from "../../../public/assets/foxLogo.png";
+const foxLogo = "/assets/foxLogo.png";
 
 const COLORS = {
   orange: "#FF8A00",
