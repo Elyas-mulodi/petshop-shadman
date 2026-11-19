@@ -1,0 +1,1 @@
+var e=new Intl.DateTimeFormat(`fa-IR`,{year:`numeric`,month:`long`,day:`numeric`}),t=new Intl.DateTimeFormat(`fa-IR`,{hour:`2-digit`,minute:`2-digit`}),n=t=>e.format(new Date(t)),r=e=>`${n(e)}، ساعت ${t.format(new Date(e))}`;export{r as n,n as t};

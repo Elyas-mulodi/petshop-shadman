@@ -1,0 +1,1 @@
+var e=e=>window.location.assign(e);export{e as t};

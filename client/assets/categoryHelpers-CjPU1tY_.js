@@ -1,0 +1,1 @@
+var e=t=>{let n=[t._id];return(t.children||[]).forEach(t=>n.push(...e(t))),n},t=(e,n)=>{for(let r of e){if(r._id===n)return r;let e=t(r.children||[],n);if(e)return e}return null},n=(e,t,r=[])=>{for(let i of e){let e=[...r,i];if(i._id===t)return e;let a=n(i.children||[],t,e);if(a)return a}return null};export{t as n,n as r,e as t};

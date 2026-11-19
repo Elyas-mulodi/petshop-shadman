@@ -1,0 +1,1 @@
+var e=864e5,t=t=>{let n=t?.pendingLoyaltyDiscount;if(!n||!(n.percent>0)||!n.expiresAt)return null;let r=new Date(n.expiresAt).getTime()-Date.now();return r<=0?null:{percent:n.percent,expiresAt:n.expiresAt,daysLeft:Math.ceil(r/e),ratio:Math.min(1,r/(30*e))}};export{t};

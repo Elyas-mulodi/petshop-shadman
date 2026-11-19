@@ -1,0 +1,1 @@
+import{Ot as e,St as t,Tt as n,Xt as r,Zt as i,a,n as o}from"./index-D5EV-XFt.js";var s=()=>{let s=r(),c=i(e=>e.cart.guestItems);return async({accessToken:r,user:i})=>{s(e({accessToken:r,user:i}));try{let e=c.length>0,r=e?await a(c):await o();s(n(r.data.data)),e&&s(t())}catch{}}};export{s as t};
