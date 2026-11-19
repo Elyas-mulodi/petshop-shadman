@@ -6,7 +6,7 @@ import { MotionConfig } from "motion/react";
 import { store } from "./app/store";
 import App from "./App.jsx";
 import "./styles/index.css";
-
+import "@fontsource-variable/vazirmatn";
 
 if ("scrollRestoration" in window.history) {
   window.history.scrollRestoration = "manual";

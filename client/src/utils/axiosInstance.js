@@ -4,10 +4,9 @@ import { logout, setAccessToken } from "../features/auth/authSlice";
 
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
-  withCredentials: true, // برای ارسال کوکی refreshToken
+  withCredentials: true, 
 });
 
-// اضافه کردن access token به هر درخواست
 axiosInstance.interceptors.request.use((config) => {
   const token = store.getState().auth.accessToken;
   if (token) {
@@ -16,7 +15,8 @@ axiosInstance.interceptors.request.use((config) => {
   return config;
 });
 
-// اگه access token منقضی شده بود (401)، خودکار یه بار refresh کن و درخواست رو دوباره بفرست
+const NO_REFRESH_URLS = ["/auth/login", "/auth/register", "/auth/refresh-token"];
+
 let isRefreshing = false;
 let failedQueue = [];
 
@@ -29,20 +29,20 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const skip = NO_REFRESH_URLS.some((u) => originalRequest?.url?.includes(u));
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !skip) {
+      originalRequest._retry = true;
+
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
-        })
-          .then((token) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            return axiosInstance(originalRequest);
-          })
-          .catch((err) => Promise.reject(err));
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return axiosInstance(originalRequest);
+        });
       }
 
-      originalRequest._retry = true;
       isRefreshing = true;
 
       try {
