@@ -1,1 +1,0 @@
-import{K as e}from"./index-D5EV-XFt.js";var t=()=>e.get(`/loyalty-tiers/public`);export{t};

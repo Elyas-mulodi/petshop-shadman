@@ -1,0 +1,1 @@
+import{n as e}from"./createLucideIcon-BXLm2Wke.js";import{Bt as t,F as n,N as r}from"./index-GCvnCwhO.js";var i=e(),a=()=>(0,i.jsxs)(i.Fragment,{children:[(0,i.jsx)(n,{title:`صفحه پیدا نشد`,description:`این بخش از پنل وجود ندارد یا هنوز ساخته نشده است.`}),(0,i.jsx)(t,{to:`/admin`,children:(0,i.jsx)(r,{variant:`primary`,children:`بازگشت به داشبورد`})})]});export{a as default};

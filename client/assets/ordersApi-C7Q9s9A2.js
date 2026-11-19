@@ -1,1 +1,0 @@
-import{K as e}from"./index-D5EV-XFt.js";var t=()=>e.get(`/orders/shipping-config`),n=t=>e.post(`/orders`,t),r=()=>e.get(`/orders/my-orders`),i=t=>e.post(`/orders/${t}/pay`),a=t=>e.patch(`/orders/${t}/cancel`),o=t=>e.get(`/orders/${t}`);export{t as a,o as i,n,i as o,r,a as t};
