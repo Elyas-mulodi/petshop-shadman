@@ -11,7 +11,8 @@ const MAX_PRINT = 30;
 
 // import نام‌دار (مثلاً { store }) اگه اسم export فرق داشته باشه، کل صفحه رو سفید می‌کنه.
 // با import * هر اسمی که storeInfo.js داره (store یا STORE یا default) پیدا میشه.
-const defaultStore = storeInfo.store ?? storeInfo.STORE ?? storeInfo.default ?? {};
+const defaultStore =
+  storeInfo.STORE.store ?? storeInfo.STORE ?? storeInfo.STORE.default ?? {};
 
 const OBJECT_ID = /^[0-9a-fA-F]{24}$/;
 
