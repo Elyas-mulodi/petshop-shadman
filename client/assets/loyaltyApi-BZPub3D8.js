@@ -1,0 +1,1 @@
+import{K as e}from"./index-CsdHrVBg.js";var t=()=>e.get(`/loyalty-tiers/public`);export{t};

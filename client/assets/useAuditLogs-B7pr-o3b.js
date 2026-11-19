@@ -1,0 +1,1 @@
+import{m as e}from"./query-COAvwWUW.js";import{C as t,K as n}from"./index-CsdHrVBg.js";var r=r=>t({queryKey:[`admin`,`audit`,`list`,r],queryFn:({signal:e})=>n.get(`/audit-logs`,{params:r,signal:e}).then(e=>e.data),placeholderData:e});export{r as t};

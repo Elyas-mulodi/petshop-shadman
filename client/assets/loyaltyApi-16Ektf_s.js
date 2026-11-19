@@ -1,1 +1,0 @@
-import{K as e}from"./index-GCvnCwhO.js";var t=()=>e.get(`/loyalty-tiers/public`);export{t};
